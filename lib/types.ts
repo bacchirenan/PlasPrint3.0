@@ -1,3 +1,4 @@
+// Versão: 17:59 - 02/03/2026
 // Tipos compartilhados com PlasPrint Manutenção
 export type UserRole = 'user' | 'master' | 'admin'
 
