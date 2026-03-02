@@ -1,0 +1,1142 @@
+'use client'
+
+import { useState, useMemo, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ToastProvider'
+import type { InventoryItem } from '@/lib/types'
+
+interface InventoryClientProps {
+    initialItems: InventoryItem[]
+    category: 'peca' | 'tinta'
+    userRole?: string
+    viewMode?: 'inventory' | 'planning' | 'both' | 'withdrawals'
+}
+
+export function InventoryClient({ initialItems, category, userRole, viewMode = 'both' }: InventoryClientProps) {
+    const isAdmin = userRole === 'admin' || userRole === 'master'
+    const supabase = createClient()
+    const { showToast } = useToast()
+    const [items, setItems] = useState<InventoryItem[]>(initialItems)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [loading, setLoading] = useState<string | null>(null)
+    const [isEditing, setIsEditing] = useState<string | null>(null)
+    const [isAdding, setIsAdding] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const [editForm, setEditForm] = useState<Partial<InventoryItem>>({})
+    const [isWithdrawing, setIsWithdrawing] = useState(false)
+    const [withdrawals, setWithdrawals] = useState([{ itemId: '', bottles: 1 }])
+    const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([])
+    const [editingHistoryId, setEditingHistoryId] = useState<string | null>(null)
+    const [historyEditForm, setHistoryEditForm] = useState<any>({})
+    const [selectedImage, setSelectedImage] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (category === 'tinta') {
+            const fetchHistory = async () => {
+                const { data } = await supabase
+                    .from('ink_withdrawals')
+                    .select('*, inventory_items(name, code)')
+                    .order('created_at', { ascending: false })
+                if (data) setWithdrawalHistory(data)
+            }
+            fetchHistory()
+        }
+    }, [category, supabase])
+
+    const filteredItems = useMemo(() => {
+        return items.filter(item =>
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (item.code && item.code.toLowerCase().includes(searchTerm.toLowerCase()))
+        )
+    }, [items, searchTerm])
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setUploading(true)
+        try {
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${Math.random()}.${fileExt}`
+            const filePath = `inventory/${fileName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('attachments')
+                .upload(filePath, file)
+
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('attachments')
+                .getPublicUrl(filePath)
+
+            setEditForm(prev => ({ ...prev, image_url: publicUrl }))
+            showToast('Imagem carregada com sucesso!', 'success')
+        } catch (error) {
+            console.error('Erro no upload:', error)
+            showToast('Erro ao carregar imagem.', 'error')
+        } finally {
+            setUploading(false)
+        }
+    }
+
+    const handleUpdateQuantity = async (id: string, newQty: number) => {
+        if (newQty < 0) return
+        setLoading(id)
+
+        const { error } = await supabase
+            .from('inventory_items')
+            .update({ quantity: newQty })
+            .eq('id', id)
+
+        setLoading(null)
+
+        if (error) {
+            showToast('Erro ao atualizar quantidade.', 'error')
+            return
+        }
+
+        setItems(prev => prev.map(item =>
+            item.id === id ? { ...item, quantity: newQty } : item
+        ))
+    }
+
+    const handleDeleteItem = async (id: string, name: string) => {
+        if (!confirm(`Tem certeza que deseja apagar ${category === 'tinta' ? 'a tinta' : 'a peça'} "${name}"? Esta ação não pode ser desfeita.`)) return
+
+        setLoading(id)
+        const { error } = await supabase
+            .from('inventory_items')
+            .delete()
+            .eq('id', id)
+
+        setLoading(null)
+
+        if (error) {
+            showToast('Erro ao apagar item.', 'error')
+            return
+        }
+
+        setItems(prev => prev.filter(item => item.id !== id))
+        showToast('Item apagado com sucesso!', 'success')
+    }
+
+    const handleSaveAdd = async () => {
+        if (!editForm.name) {
+            showToast('Nome é obrigatório.', 'error')
+            return
+        }
+
+        setLoading('adding')
+        const { data, error } = await supabase
+            .from('inventory_items')
+            .insert({
+                name: editForm.name,
+                code: editForm.code,
+                quantity: editForm.quantity || 0,
+                min_quantity: editForm.min_quantity || 0,
+                image_url: editForm.image_url,
+                category: category,
+                location: editForm.location,
+                daily_consumption: editForm.daily_consumption || 0,
+                lead_time_days: editForm.lead_time_days || 0
+            })
+            .select()
+            .single()
+
+        setLoading(null)
+
+        if (error) {
+            showToast(`Erro ao cadastrar ${category === 'tinta' ? 'tinta' : 'peça'}.`, 'error')
+            return
+        }
+
+        setItems(prev => [data, ...prev])
+        setIsAdding(false)
+        setEditForm({})
+        showToast(`${category === 'tinta' ? 'Tinta' : 'Peça'} cadastrada com sucesso!`, 'success')
+    }
+
+    const handleSaveEdit = async () => {
+        if (!isEditing) return
+        setLoading(isEditing)
+
+        const { error } = await supabase
+            .from('inventory_items')
+            .update({
+                name: editForm.name,
+                code: editForm.code,
+                quantity: editForm.quantity,
+                min_quantity: editForm.min_quantity,
+                location: editForm.location,
+                daily_consumption: editForm.daily_consumption,
+                lead_time_days: editForm.lead_time_days,
+                image_url: editForm.image_url
+            })
+            .eq('id', isEditing)
+
+        setLoading(null)
+
+        if (error) {
+            showToast('Erro ao salvar alterações.', 'error')
+            return
+        }
+
+        setItems(prev => prev.map(item =>
+            item.id === isEditing ? { ...item, ...editForm } as InventoryItem : item
+        ))
+        setIsEditing(null)
+        showToast('Item atualizado com sucesso!', 'success')
+    }
+
+    const handleUpdatePlanning = async (id: string, field: 'daily_consumption' | 'lead_time_days', value: number) => {
+        if (!isAdmin) {
+            showToast('Você não tem permissão para alterar o planejamento.', 'error')
+            return
+        }
+
+        setLoading(id)
+        const { error } = await supabase
+            .from('inventory_items')
+            .update({ [field]: value })
+            .eq('id', id)
+
+        setLoading(null)
+        if (error) {
+            showToast('Erro ao atualizar planejamento.', 'error')
+            return
+        }
+
+        setItems(prev => prev.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ))
+    }
+
+    // ─── Auxiliares de Cálculo de Consumo ─────────────────────────────────────
+    const getWorkingDaysCount = (start: Date, end: Date): number => {
+        const oneDay = 24 * 60 * 60 * 1000
+        const totalDiffDays = Math.max(1, Math.round(Math.abs(end.getTime() - start.getTime()) / oneDay))
+
+        let sundays = 0
+        // Começamos do dia seguinte ao início até o dia final
+        for (let i = 1; i <= totalDiffDays; i++) {
+            const checkDate = new Date(start.getTime() + (i * oneDay))
+            if (checkDate.getDay() === 0) sundays++
+        }
+
+        const workingDays = totalDiffDays - sundays
+        return Math.max(1, workingDays)
+    }
+
+    const handleRegisterWithdrawal = async () => {
+        const validWithdrawals = withdrawals.filter(w => w.itemId && w.bottles > 0)
+
+        if (validWithdrawals.length === 0) {
+            showToast('Selecione pelo menos uma tinta e a quantidade.', 'error')
+            return
+        }
+
+        setLoading('withdrawing')
+
+        let hasError = false
+        const updatedItems = [...items]
+
+        for (const withdrawal of validWithdrawals) {
+            const itemIndex = updatedItems.findIndex(i => i.id === withdrawal.itemId)
+            if (itemIndex === -1) continue
+
+            const item = updatedItems[itemIndex]
+            if (item.quantity < withdrawal.bottles) {
+                showToast(`Estoque insuficiente para a tinta ${item.name}.`, 'error')
+                continue
+            }
+
+            let updatedConsumption = item.daily_consumption
+            let closedRecordId: string | null = null
+            let closedRecordData: any = null
+
+            // 1. Fechar ciclo anterior
+            const { data: previous, error: fError } = await supabase
+                .from('ink_withdrawals')
+                .select('*')
+                .eq('item_id', item.id)
+                .is('closed_at', null)
+                .order('created_at', { ascending: false })
+                .limit(1)
+
+            if (fError) {
+                console.error('Erro fHist (Supabase):', {
+                    message: fError.message,
+                    details: fError.details,
+                    hint: fError.hint,
+                    code: fError.code
+                })
+            }
+
+            if (previous && previous.length > 0) {
+                const prev = previous[0]
+                const endDate = new Date()
+                const startDate = new Date(prev.created_at)
+
+                // Cálculo de dias úteis (exclui domingos)
+                const diffDays = getWorkingDaysCount(startDate, endDate)
+                const newConsumption = Math.round((prev.quantity_liters * 1000) / diffDays)
+
+                const { error: uError } = await supabase.from('ink_withdrawals')
+                    .update({ closed_at: endDate.toISOString(), consumption_per_day_ml: newConsumption })
+                    .eq('id', prev.id)
+
+                if (uError) {
+                    console.error('Erro uHist:', uError)
+                } else {
+                    closedRecordId = prev.id
+                    closedRecordData = { closed_at: endDate.toISOString(), consumption_per_day_ml: newConsumption }
+
+                    // MÉDIA PONDERADA: Considera o valor que já estava setado (como os 90ml) e a média do ciclo atual
+                    updatedConsumption = item.daily_consumption > 0
+                        ? Math.round((item.daily_consumption + newConsumption) / 2)
+                        : newConsumption
+
+                    await supabase.from('inventory_items')
+                        .update({ daily_consumption: updatedConsumption })
+                        .eq('id', item.id)
+                }
+            }
+
+            // 2. Nova retirada
+            const { data: newLog, error: lError } = await supabase
+                .from('ink_withdrawals')
+                .insert({ item_id: item.id, quantity_liters: withdrawal.bottles })
+                .select('*, inventory_items(name, code)')
+                .single()
+
+            if (lError) {
+                showToast(`Erro ao registrar nova retirada para ${item.name}.`, 'error')
+                hasError = true
+                continue
+            }
+
+            // 3. Baixa no estoque
+            const newQty = item.quantity - withdrawal.bottles
+            const { error: sError } = await supabase.from('inventory_items').update({ quantity: newQty }).eq('id', item.id)
+            if (sError) console.error('Erro sStock:', sError)
+
+            // 4. Atualizar Histórico (Consolidado)
+            setWithdrawalHistory(prevHist => {
+                let updated = [...prevHist]
+                if (closedRecordId) {
+                    updated = updated.map(h => h.id === closedRecordId ? { ...h, ...closedRecordData } : h)
+                }
+                if (newLog) updated = [newLog, ...updated]
+                return updated
+            })
+
+            updatedItems[itemIndex] = { ...item, quantity: newQty, daily_consumption: updatedConsumption }
+        }
+
+        setItems(updatedItems)
+        setLoading(null)
+
+        if (!hasError) {
+            setIsWithdrawing(false)
+            setWithdrawals([{ itemId: '', bottles: 1 }])
+            showToast('Retiradas registradas com sucesso!', 'success')
+        }
+    }
+
+    const handleDeleteHistory = async (id: string) => {
+        const record = withdrawalHistory.find(h => h.id === id)
+        if (!record) return
+
+        if (!confirm(`Deseja realmente apagar este registro de histórico? ${record.quantity_liters}L serão devolvidos ao estoque e a média de consumo será recalculada.`)) return
+
+        setLoading(id)
+
+        try {
+            // 1. Devolver ao estoque
+            const item = items.find(i => i.id === record.item_id)
+            let newQty = item?.quantity || 0
+            if (item) {
+                newQty = item.quantity + record.quantity_liters
+                await supabase.from('inventory_items').update({ quantity: newQty }).eq('id', item.id)
+            }
+
+            // 2. Se o registro deletado for o mais recente (estiver aberto), 
+            // precisamos reabrir o registro que ele fechou.
+            if (!record.closed_at) {
+                const { data: lastClosed } = await supabase
+                    .from('ink_withdrawals')
+                    .select('*')
+                    .eq('item_id', record.item_id)
+                    .not('closed_at', 'is', null)
+                    .order('closed_at', { ascending: false })
+                    .limit(1)
+
+                if (lastClosed && lastClosed.length > 0) {
+                    const prev = lastClosed[0]
+                    // Reabrir o registro anterior
+                    await supabase.from('ink_withdrawals')
+                        .update({ closed_at: null, consumption_per_day_ml: null })
+                        .eq('id', prev.id)
+
+                    // Buscar a média do NOVO "último fechado" para o planejamento
+                    const { data: newLastClosed } = await supabase
+                        .from('ink_withdrawals')
+                        .select('consumption_per_day_ml')
+                        .eq('item_id', record.item_id)
+                        .not('id', 'eq', prev.id)
+                        .not('closed_at', 'is', null)
+                        .order('closed_at', { ascending: false })
+                        .limit(1)
+
+                    const newAvg = (newLastClosed && newLastClosed.length > 0) ? newLastClosed[0].consumption_per_day_ml : 0
+
+                    await supabase.from('inventory_items')
+                        .update({ daily_consumption: newAvg })
+                        .eq('id', record.item_id)
+
+                    // Atualizar estado local
+                    setItems(prevItems => prevItems.map(i =>
+                        i.id === record.item_id ? { ...i, quantity: newQty, daily_consumption: newAvg } : i
+                    ))
+                    setWithdrawalHistory(prevHist => prevHist.map(h =>
+                        h.id === prev.id ? { ...h, closed_at: null, consumption_per_day_ml: null } : h
+                    ))
+                } else {
+                    // Se não tinha nenhum fechado, apenas atualiza o estoque
+                    setItems(prevItems => prevItems.map(i => i.id === record.item_id ? { ...i, quantity: newQty } : i))
+                }
+            } else {
+                // Se o registro deletado JÁ estava fechado, apenas removemos e voltamos o estoque
+                setItems(prevItems => prevItems.map(i => i.id === record.item_id ? { ...i, quantity: newQty } : i))
+            }
+
+            // 3. Apagar o registro
+            const { error } = await supabase.from('ink_withdrawals').delete().eq('id', id)
+            if (error) throw error
+
+            setWithdrawalHistory(prev => prev.filter(h => h.id !== id))
+            showToast('Registro apagado, estoque devolvido e média recalculada.', 'success')
+
+        } catch (error) {
+            console.error('Erro ao deletar:', error)
+            showToast('Erro ao processar exclusão.', 'error')
+        } finally {
+            setLoading(null)
+        }
+    }
+
+    const handleSaveHistoryEdit = async () => {
+        if (!editingHistoryId) return
+        setLoading(editingHistoryId)
+
+        const payload: any = {
+            quantity_liters: historyEditForm.quantity_liters,
+            created_at: historyEditForm.created_at,
+        }
+        if (historyEditForm.closed_at !== undefined) payload.closed_at = historyEditForm.closed_at
+        if (historyEditForm.consumption_per_day_ml !== undefined) payload.consumption_per_day_ml = historyEditForm.consumption_per_day_ml
+
+        const { error } = await supabase
+            .from('ink_withdrawals')
+            .update(payload)
+            .eq('id', editingHistoryId)
+
+        setLoading(null)
+
+        if (error) {
+            showToast('Erro ao salvar histórico.', 'error')
+            return
+        }
+
+        setWithdrawalHistory(prev => prev.map(h =>
+            h.id === editingHistoryId ? { ...h, ...payload } : h
+        ))
+        setEditingHistoryId(null)
+        showToast('Registro atualizado.', 'success')
+    }
+
+    return (
+        <div className="inventory-container">
+            {/* Toolbar - Ocultar botão de cadastrar na visão de planejamento pura se desejar, ou manter se for admin */}
+            <div className="card" style={{ marginBottom: '24px', padding: '16px 20px' }}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome ou código..."
+                            className="observation-input"
+                            style={{ margin: 0, paddingLeft: '40px' }}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        <span style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+                    </div>
+                    {viewMode === 'withdrawals' && (
+                        <button
+                            className="btn btn-primary"
+                            style={{ background: 'var(--success)', borderColor: 'var(--success)' }}
+                            onClick={() => setIsWithdrawing(true)}
+                        >
+                            Registrar Retirada
+                        </button>
+                    )}
+                    {(viewMode === 'inventory' || viewMode === 'both') && (
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                                setEditForm({ quantity: 0, min_quantity: 0, daily_consumption: 0, lead_time_days: 7 })
+                                setIsAdding(true)
+                            }}
+                        >
+                            + Cadastrar {category === 'tinta' ? 'Tinta' : 'Peça'}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Tabela de Planejamento (Apenas para Tintas e Admin no modo Estoque) */}
+            {category === 'tinta' && isAdmin && (viewMode === 'both' || viewMode === 'planning') && filteredItems.length > 0 && (
+                <div className="card" style={{ marginBottom: '24px', padding: 0, overflow: 'hidden' }}>
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(58, 134, 255, 0.05)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            📊 Planejamento de Consumo e Cobertura
+                        </h3>
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="inventory-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: 'rgba(255,255,255,0.02)', textAlign: 'left' }}>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Código</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Descrição</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Consumo Ano (L)</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Consumo Mês (L)</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center', background: 'rgba(58, 134, 255, 0.05)' }}>Consumo Dia (ml)</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Estoque Atual (L)</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Cobertura</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center', background: 'rgba(58, 134, 255, 0.05)' }}>Dias Entrega</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Dias p/ Pedido</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredItems.map(item => {
+                                    const consumptionMonth = ((item.daily_consumption || 0) / 1000) * 30
+                                    const consumptionYear = ((item.daily_consumption || 0) / 1000) * 365
+                                    const coverage = item.daily_consumption > 0 ? ((item.quantity * 1000) / item.daily_consumption) : 0
+                                    const daysToOrder = coverage - (item.lead_time_days || 0)
+
+                                    return (
+                                        <tr key={`plan-${item.id}`} style={{ borderTop: '1px solid var(--border)' }}>
+                                            <td style={{ padding: '12px 20px', fontSize: '12px', color: 'var(--text-secondary)' }}>{item.code || '—'}</td>
+                                            <td style={{ padding: '12px 20px', fontSize: '13px', fontWeight: 600 }}>{item.name}</td>
+                                            <td style={{ padding: '12px 20px', fontSize: '12px', textAlign: 'center' }}>{consumptionYear.toFixed(1)}</td>
+                                            <td style={{ padding: '12px 20px', fontSize: '12px', textAlign: 'center' }}>{consumptionMonth.toFixed(1)}</td>
+                                            <td style={{ padding: '8px 20px', textAlign: 'center', background: 'rgba(58, 134, 255, 0.02)' }}>
+                                                <input
+                                                    type="number"
+                                                    className="observation-input"
+                                                    style={{ margin: 0, padding: '2px 4px', width: '50px', minWidth: '50px', textAlign: 'center', fontSize: '13px', opacity: isAdmin ? 1 : 0.6 }}
+                                                    defaultValue={item.daily_consumption || 0}
+                                                    onBlur={e => {
+                                                        if (!isAdmin) return
+                                                        const val = parseFloat(e.target.value) || 0
+                                                        if (val !== item.daily_consumption) {
+                                                            handleUpdatePlanning(item.id, 'daily_consumption', val)
+                                                        }
+                                                    }}
+                                                    disabled={loading === item.id || !isAdmin}
+                                                />
+                                            </td>
+                                            <td style={{ padding: '12px 20px', fontSize: '13px', textAlign: 'center', fontWeight: 700 }}>{item.quantity}</td>
+                                            <td style={{ padding: '12px 20px', fontSize: '12px', textAlign: 'center', color: coverage < 15 ? 'var(--danger)' : 'var(--success)' }}>
+                                                {coverage.toFixed(0)} dias
+                                            </td>
+                                            <td style={{ padding: '8px 20px', textAlign: 'center', background: 'rgba(58, 134, 255, 0.02)' }}>
+                                                <input
+                                                    type="number"
+                                                    className="observation-input"
+                                                    style={{ margin: 0, padding: '2px 4px', width: '50px', minWidth: '50px', textAlign: 'center', fontSize: '13px', opacity: isAdmin ? 1 : 0.6 }}
+                                                    defaultValue={item.lead_time_days || 0}
+                                                    onBlur={e => {
+                                                        if (!isAdmin) return
+                                                        const val = parseInt(e.target.value) || 0
+                                                        if (val !== item.lead_time_days) {
+                                                            handleUpdatePlanning(item.id, 'lead_time_days', val)
+                                                        }
+                                                    }}
+                                                    disabled={loading === item.id || !isAdmin}
+                                                />
+                                            </td>
+                                            <td style={{
+                                                padding: '12px 20px',
+                                                fontSize: '13px',
+                                                textAlign: 'center',
+                                                fontWeight: 800,
+                                                color: daysToOrder <= 3 ? 'var(--danger)' : 'inherit'
+                                            }}>
+                                                {daysToOrder <= 0 ? 'PEDIR AGORA' : `${daysToOrder.toFixed(0)} dias`}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Histórico de Retiradas */}
+            {category === 'tinta' && viewMode === 'withdrawals' && (
+                <div className="card" style={{ marginBottom: '24px', padding: 0, overflow: 'hidden' }}>
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(58, 134, 255, 0.05)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            📋 Histórico de Retiradas e Consumo
+                        </h3>
+                    </div>
+                    <div style={{ overflowX: 'auto', maxHeight: '400px' }}>
+                        <table className="inventory-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--card-bg)' }}>
+                                <tr style={{ background: 'rgba(255,255,255,0.02)', textAlign: 'left' }}>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Código</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tinta</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Qtd (L)</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Data Retirada</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Data Fechamento</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Média de Consumo (ml/dia)</th>
+                                    <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Status</th>
+                                    {isAdmin && <th style={{ padding: '12px 20px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Ações</th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {withdrawalHistory.map(hist => (
+                                    <tr key={hist.id} style={{ borderTop: '1px solid var(--border)' }}>
+                                        <td style={{ padding: '12px 20px', fontSize: '13px', color: 'var(--text-secondary)' }}>{hist.inventory_items?.code || '—'}</td>
+                                        <td style={{ padding: '12px 20px', fontSize: '13px', fontWeight: 600 }}>{hist.inventory_items?.name || 'Tinta Excluída'}</td>
+                                        <td style={{ padding: '12px 20px', fontSize: '13px', textAlign: 'center', fontWeight: 700 }}>{hist.quantity_liters} L</td>
+                                        <td style={{ padding: '12px 20px', fontSize: '13px', textAlign: 'center' }}>{new Date(hist.created_at).toLocaleString('pt-BR')}</td>
+                                        <td style={{ padding: '12px 20px', fontSize: '13px', textAlign: 'center', color: hist.closed_at ? 'inherit' : 'var(--text-muted)' }}>
+                                            {hist.closed_at ? new Date(hist.closed_at).toLocaleString('pt-BR') : 'Aguardando próxima retirada'}
+                                        </td>
+                                        <td style={{ padding: '12px 20px', fontSize: '13px', textAlign: 'center', fontWeight: 600 }}>
+                                            {hist.consumption_per_day_ml ? `${hist.consumption_per_day_ml} ml` : '—'}
+                                        </td>
+                                        <td style={{ padding: '12px 20px', fontSize: '12px', textAlign: 'center' }}>
+                                            <span style={{
+                                                padding: '2px 8px',
+                                                borderRadius: '4px',
+                                                background: hist.closed_at ? 'rgba(46, 204, 113, 0.1)' : 'rgba(52, 152, 219, 0.1)',
+                                                color: hist.closed_at ? 'var(--success)' : 'var(--accent)'
+                                            }}>
+                                                {hist.closed_at ? 'Fechado' : 'Aberto'}
+                                            </span>
+                                        </td>
+                                        {isAdmin && (
+                                            <td style={{ padding: '12px 20px', textAlign: 'center' }}>
+                                                <button
+                                                    className="btn-icon"
+                                                    onClick={() => {
+                                                        setEditingHistoryId(hist.id);
+                                                        setHistoryEditForm({
+                                                            ...hist,
+                                                            created_at: new Date(hist.created_at).toISOString().slice(0, 16),
+                                                            closed_at: hist.closed_at ? new Date(hist.closed_at).toISOString().slice(0, 16) : ''
+                                                        });
+                                                    }}
+                                                >✏️</button>
+                                                <button className="btn-icon" style={{ marginLeft: '8px' }} onClick={() => handleDeleteHistory(hist.id)}>🗑️</button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Listagem */}
+            {(viewMode === 'inventory' || viewMode === 'both') && (
+                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="inventory-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: 'rgba(255,255,255,0.03)', textAlign: 'left' }}>
+                                    {category === 'peca' && (
+                                        <th style={{ padding: '16px 20px', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', width: '80px' }}>Foto</th>
+                                    )}
+                                    <th style={{ padding: '16px 20px', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Item</th>
+                                    <th style={{ padding: '16px 20px', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Código</th>
+                                    {category === 'peca' && (
+                                        <th style={{ padding: '16px 20px', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Máquina</th>
+                                    )}
+                                    <th style={{ padding: '16px 20px', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Qtd Atual</th>
+                                    <th style={{ padding: '16px 20px', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'right' }}>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredItems.map(item => {
+                                    const specialNames = ['pressão negativa', 'servo', 'stepper drive']
+                                    const isSpecialItem = category === 'peca' && item.name && specialNames.some(sn => item.name.toLowerCase().includes(sn))
+                                    const threshold = isSpecialItem ? 0 : item.min_quantity
+                                    const isLowStock = threshold !== null && item.quantity <= threshold
+
+                                    return (
+                                        <tr key={item.id} style={{ borderTop: '1px solid var(--border)' }}>
+                                            {category === 'peca' && (
+                                                <td style={{ padding: '16px 20px' }}>
+                                                    <div style={{
+                                                        width: '48px',
+                                                        height: '48px',
+                                                        borderRadius: '8px',
+                                                        background: 'rgba(255,255,255,0.05)',
+                                                        border: '1px solid var(--border)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        overflow: 'hidden'
+                                                    }}>
+                                                        {item.image_url ? (
+                                                            <img
+                                                                src={item.image_url}
+                                                                alt={item.name}
+                                                                style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                                                                onClick={() => setSelectedImage(item.image_url!)}
+                                                            />
+                                                        ) : (
+                                                            <span style={{ fontSize: '20px', opacity: 0.3 }}>⚙️</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            )}
+                                            <td style={{ padding: '16px 20px' }}>
+                                                <div style={{ fontWeight: 600 }}>{item.name}</div>
+                                                {isLowStock && (
+                                                    <span style={{ fontSize: '10px', color: 'var(--danger)', background: 'rgba(230, 57, 70, 0.1)', padding: '2px 6px', borderRadius: '4px', marginTop: '4px', display: 'inline-block' }}>
+                                                        ⚠️ Estoque Baixo (Mín: {threshold})
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td style={{ padding: '16px 20px', color: 'var(--text-secondary)', fontSize: '13px' }}>{item.code || '—'}</td>
+                                            {category === 'peca' && (
+                                                <td style={{ padding: '16px 20px', color: 'var(--text-secondary)', fontSize: '13px' }}>{item.location || '—'}</td>
+                                            )}
+                                            <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                                                    <button
+                                                        className="btn-icon"
+                                                        style={{ width: '24px', height: '24px', fontSize: '16px' }}
+                                                        onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                                        disabled={loading === item.id}
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <span style={{ fontSize: '18px', fontWeight: 800, minWidth: '30px', color: isLowStock ? 'var(--danger)' : 'inherit' }}>
+                                                        {item.quantity}
+                                                    </span>
+                                                    <button
+                                                        className="btn-icon"
+                                                        style={{ width: '24px', height: '24px', fontSize: '16px' }}
+                                                        onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                                        disabled={loading === item.id}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                                                <button
+                                                    className="btn btn-sm btn-ghost"
+                                                    onClick={() => {
+                                                        setIsEditing(item.id)
+                                                        setEditForm(item)
+                                                    }}
+                                                >
+                                                    Editar
+                                                </button>
+                                                {isAdmin && (
+                                                    <button
+                                                        className="btn btn-sm btn-ghost"
+                                                        style={{ color: 'var(--danger)', marginLeft: '8px' }}
+                                                        onClick={() => handleDeleteItem(item.id, item.name)}
+                                                        disabled={loading === item.id}
+                                                    >
+                                                        Apagar
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                                {filteredItems.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                            Nenhum item encontrado no estoque.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )
+            }
+
+            {/* Modal de Cadastro/Edição */}
+            {
+                (isAdding || isEditing) && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 1000, backdropFilter: 'blur(4px)'
+                    }}>
+                        <div className="card" style={{ width: '100%', maxWidth: '500px', padding: '24px' }}>
+                            <h3 style={{ marginBottom: '20px' }}>{isAdding ? `Cadastrar Nova ${category === 'tinta' ? 'Tinta' : 'Peça'}` : 'Editar Item'}</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
+                                {/* Upload de Imagem (Apenas para Peças) */}
+                                {category === 'peca' && (
+                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '8px' }}>
+                                        <div style={{
+                                            width: '80px', height: '80px', borderRadius: '12px',
+                                            background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+                                        }}>
+                                            {editForm.image_url ? (
+                                                <img src={editForm.image_url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                                <span style={{ fontSize: '30px', opacity: 0.2 }}>📷</span>
+                                            )}
+                                        </div>
+                                        <label className="btn-secondary" style={{ fontSize: '12px', padding: '8px 16px', cursor: 'pointer' }}>
+                                            {uploading ? 'Carregando...' : 'Carregar Imagem'}
+                                            <input type="file" hidden accept="image/*" onChange={handleImageUpload} disabled={uploading} />
+                                        </label>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                    <div>
+                                        <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Nome do Item</label>
+                                        <input
+                                            type="text"
+                                            className="observation-input"
+                                            value={editForm.name || ''}
+                                            onChange={e => {
+                                                const val = category === 'tinta' ? e.target.value.toUpperCase() : e.target.value
+                                                setEditForm(prev => ({ ...prev, name: val }))
+                                            }}
+                                            style={{ margin: 0, textTransform: category === 'tinta' ? 'uppercase' : 'none' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Código no Sistema</label>
+                                        <input
+                                            type="text"
+                                            className="observation-input"
+                                            value={editForm.code || ''}
+                                            onChange={e => {
+                                                const val = category === 'tinta' ? e.target.value.toUpperCase() : e.target.value
+                                                setEditForm(prev => ({ ...prev, code: val }))
+                                            }}
+                                            style={{ margin: 0, textTransform: category === 'tinta' ? 'uppercase' : 'none' }}
+                                        />
+                                    </div>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                    <div>
+                                        <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Quantidade Atual{category === 'tinta' ? ' (L)' : ''}</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            className="observation-input"
+                                            style={{ margin: 0 }}
+                                            value={editForm.quantity || 0}
+                                            onChange={e => setEditForm(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Estoque Mínimo</label>
+                                        <input
+                                            type="number"
+                                            className="observation-input"
+                                            style={{ margin: 0 }}
+                                            value={editForm.min_quantity || 0}
+                                            onChange={e => setEditForm(prev => ({ ...prev, min_quantity: parseInt(e.target.value) || 0 }))}
+                                        />
+                                    </div>
+                                </div>
+
+                                {category === 'peca' && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Máquina (Opcional)</label>
+                                            <input
+                                                type="text"
+                                                className="observation-input"
+                                                style={{ margin: 0 }}
+                                                placeholder="Ex: Máquina 28, Máquina 180..."
+                                                value={editForm.location || ''}
+                                                onChange={e => setEditForm(prev => ({ ...prev, location: e.target.value }))}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {category === 'tinta' && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Consumo Diário (ml)</label>
+                                            <input
+                                                type="number"
+                                                step="1"
+                                                className="observation-input"
+                                                style={{ margin: 0 }}
+                                                value={editForm.daily_consumption || 0}
+                                                onChange={e => setEditForm(prev => ({ ...prev, daily_consumption: parseFloat(e.target.value) || 0 }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Dias para Entrega</label>
+                                            <input
+                                                type="number"
+                                                className="observation-input"
+                                                style={{ margin: 0 }}
+                                                value={editForm.lead_time_days || 0}
+                                                onChange={e => setEditForm(prev => ({ ...prev, lead_time_days: parseInt(e.target.value) || 0 }))}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
+                                <button className="btn btn-ghost" onClick={() => { setIsAdding(false); setIsEditing(null); }}>Cancelar</button>
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={isAdding ? handleSaveAdd : handleSaveEdit}
+                                    disabled={loading !== null || uploading}
+                                >
+                                    {loading ? 'Salvando...' : isAdding ? `Cadastrar ${category === 'tinta' ? 'Tinta' : 'Peça'}` : 'Salvar Alterações'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Modal de Retirada de Tinta */}
+            {
+                isWithdrawing && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 1000, backdropFilter: 'blur(4px)'
+                    }}>
+                        <div className="card" style={{ width: '100%', maxWidth: '450px', padding: '24px' }}>
+                            <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                Registrar Retirada de Tintas
+                            </h3>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '8px' }}>
+                                {withdrawals.map((withdrawal, index) => (
+                                    <div key={index} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) auto auto', gap: '12px', alignItems: 'flex-end', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                        <div>
+                                            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Tinta</label>
+                                            <select
+                                                className="observation-input"
+                                                style={{ margin: 0, width: '100%', fontSize: '13px' }}
+                                                value={withdrawal.itemId}
+                                                onChange={e => {
+                                                    const newWithdrawals = [...withdrawals]
+                                                    newWithdrawals[index].itemId = e.target.value
+                                                    setWithdrawals(newWithdrawals)
+                                                }}
+                                            >
+                                                <option value="">Escolher...</option>
+                                                {items.filter(i => i.category === 'tinta').map(item => (
+                                                    <option key={item.id} value={item.id} disabled={withdrawals.some((w, idx) => w.itemId === item.id && idx !== index)}>
+                                                        {item.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Qtd</label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '2px 6px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <button
+                                                    className="btn-icon"
+                                                    style={{ width: '24px', height: '24px', fontSize: '14px' }}
+                                                    onClick={() => {
+                                                        const newWithdrawals = [...withdrawals]
+                                                        newWithdrawals[index].bottles = Math.max(1, newWithdrawals[index].bottles - 1)
+                                                        setWithdrawals(newWithdrawals)
+                                                    }}
+                                                >-</button>
+                                                <span style={{ fontSize: '14px', fontWeight: 700, minWidth: '18px', textAlign: 'center' }}>
+                                                    {withdrawal.bottles}
+                                                </span>
+                                                <button
+                                                    className="btn-icon"
+                                                    style={{ width: '24px', height: '24px', fontSize: '14px' }}
+                                                    onClick={() => {
+                                                        const newWithdrawals = [...withdrawals]
+                                                        newWithdrawals[index].bottles += 1
+                                                        setWithdrawals(newWithdrawals)
+                                                    }}
+                                                >+</button>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            {index === withdrawals.length - 1 && (
+                                                <button
+                                                    className="btn-icon"
+                                                    style={{ width: '32px', height: '32px', background: 'var(--success)', color: 'white' }}
+                                                    onClick={() => setWithdrawals([...withdrawals, { itemId: '', bottles: 1 }])}
+                                                    title="Adicionar outra cor"
+                                                >
+                                                    +
+                                                </button>
+                                            )}
+                                            {withdrawals.length > 1 && (
+                                                <button
+                                                    className="btn-icon"
+                                                    style={{ width: '32px', height: '32px', background: 'var(--danger)', color: 'white' }}
+                                                    onClick={() => {
+                                                        const newWithdrawals = withdrawals.filter((_, idx) => idx !== index)
+                                                        setWithdrawals(newWithdrawals)
+                                                    }}
+                                                    title="Remover linha"
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+                                <button className="btn btn-ghost" onClick={() => setIsWithdrawing(false)}>Cancelar</button>
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={handleRegisterWithdrawal}
+                                    disabled={loading === 'withdrawing' || !withdrawals.some(w => w.itemId)}
+                                >
+                                    {loading === 'withdrawing' ? 'Processando...' : 'Confirmar Tudo'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Modal de Edição de Histórico (Apenas Admin) */}
+            {
+                editingHistoryId && isAdmin && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 1000, backdropFilter: 'blur(4px)'
+                    }}>
+                        <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '24px' }}>
+                            <h3 style={{ marginBottom: '20px' }}>Editar Histórico</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Quantidade (Litros)</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        className="observation-input"
+                                        style={{ margin: 0 }}
+                                        value={historyEditForm.quantity_liters || 0}
+                                        onChange={e => setHistoryEditForm((prev: any) => ({ ...prev, quantity_liters: parseFloat(e.target.value) || 0 }))}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Data de Retirada</label>
+                                    <input
+                                        type="datetime-local"
+                                        className="observation-input"
+                                        style={{ margin: 0 }}
+                                        value={historyEditForm.created_at || ''}
+                                        onChange={e => setHistoryEditForm((prev: any) => ({ ...prev, created_at: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Data de Fechamento</label>
+                                    <input
+                                        type="datetime-local"
+                                        className="observation-input"
+                                        style={{ margin: 0 }}
+                                        value={historyEditForm.closed_at || ''}
+                                        onChange={e => setHistoryEditForm((prev: any) => ({ ...prev, closed_at: e.target.value || null }))}
+                                    />
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>Deixe vazio se o ciclo ainda estiver "Aberto".</span>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Média de Consumo (ml/dia)</label>
+                                    <input
+                                        type="number"
+                                        step="1"
+                                        className="observation-input"
+                                        style={{ margin: 0 }}
+                                        value={historyEditForm.consumption_per_day_ml || ''}
+                                        onChange={e => setHistoryEditForm((prev: any) => ({ ...prev, consumption_per_day_ml: e.target.value ? parseFloat(e.target.value) : null }))}
+                                    />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+                                <button className="btn btn-ghost" onClick={() => setEditingHistoryId(null)}>Cancelar</button>
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={handleSaveHistoryEdit}
+                                    disabled={loading === editingHistoryId}
+                                >
+                                    {loading === editingHistoryId ? 'Salvando...' : 'Salvar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Modal de Imagem Ampliada */}
+            {
+                selectedImage && (
+                    <div
+                        style={{
+                            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                            background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            zIndex: 2000, backdropFilter: 'blur(4px)'
+                        }}
+                        onClick={() => setSelectedImage(null)}
+                    >
+                        <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+                            <button
+                                onClick={() => setSelectedImage(null)}
+                                style={{
+                                    position: 'absolute', top: '-16px', right: '-16px',
+                                    background: 'var(--danger)', color: 'white', border: 'none',
+                                    borderRadius: '50%', width: '32px', height: '32px',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer', fontSize: '18px', zIndex: 10
+                                }}
+                            >
+                                ×
+                            </button>
+                            <img
+                                src={selectedImage}
+                                alt="Ampliada"
+                                style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '90vh',
+                                    objectFit: 'contain',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border)'
+                                }}
+                            />
+                        </div>
+                    </div>
+                )
+            }
+        </div >
+    )
+}
