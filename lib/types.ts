@@ -99,6 +99,60 @@ export interface AppConfig {
   valor: number
 }
 
+// ─── Tipos de Manutenção (Supabase) ──────────────────────────────────────────
+
+export interface Machine {
+  id: string
+  number: string
+  name: string
+  type: 'machine' | 'room'
+  created_at?: string
+}
+
+export interface MaintenanceCategory {
+  id: string
+  name: string
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'quarterly' | 'semiannual'
+  frequency_days: number
+  created_at?: string
+}
+
+export interface MaintenanceItem {
+  id: string
+  name: string
+  category_id: string
+  target_type: 'machine' | 'room' | 'both'
+  created_at?: string
+}
+
+export type Rating = 'ruim' | 'bom' | 'otimo'
+
+export interface MaintenanceLog {
+  id: string
+  machine_id: string
+  item_id: string
+  user_id: string
+  completed_at: string
+  rating: Rating | null
+  observation: string | null
+  created_at: string
+  user?: Profile
+}
+
+export const FREQUENCY_LABELS: Record<string, string> = {
+  daily: 'Diária',
+  weekly: 'Semanal',
+  biweekly: 'Quinzenal',
+  quarterly: 'Trimestral',
+  semiannual: 'Semestral',
+}
+
+export const RATING_LABELS: Record<Rating, string> = {
+  ruim: 'Ruim',
+  bom: 'Bom',
+  otimo: 'Ótimo',
+}
+
 // ─── Tipos de Gráficos ────────────────────────────────────────────────────────
 
 export interface ChartDataPoint {

@@ -390,32 +390,32 @@ export default function FichasPage() {
             </div>
 
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ background: 'rgba(59, 130, 246, 0.05)', borderBottom: '1px solid var(--border-card)' }}>
-                                <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Referência</th>
-                                <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Produto / Decoração</th>
+                <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '600px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                        <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)' }}>
+                            <tr style={{ background: 'rgba(59, 130, 246, 0.05)' }}>
+                                <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Referência</th>
+                                <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Produto / Decoração</th>
                                 <th
                                     onClick={() => handleSort('ciclo')}
-                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}
+                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
                                 >
                                     Ciclo (s) {sortConfig?.key === 'ciclo' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                                 </th>
                                 <th
                                     onClick={() => handleSort('consumo')}
-                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}
+                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
                                 >
                                     Consumo Total {sortConfig?.key === 'consumo' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                                 </th>
                                 <th
                                     onClick={() => handleSort('custo')}
-                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}
+                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
                                 >
                                     Custo (1k) {sortConfig?.key === 'custo' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                                 </th>
-                                <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dimensões</th>
-                                <th style={{ padding: '16px 20px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ações</th>
+                                <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Dimensões</th>
+                                <th style={{ padding: '16px 20px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
