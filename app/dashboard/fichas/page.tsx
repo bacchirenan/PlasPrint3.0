@@ -390,32 +390,32 @@ export default function FichasPage() {
             </div>
 
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '600px' }}>
+                <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '670px' }}>
                     <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)' }}>
                             <tr style={{ background: 'rgba(59, 130, 246, 0.05)' }}>
-                                <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Referência</th>
-                                <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Produto / Decoração</th>
+                                <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Referência</th>
+                                <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Produto / Decoração</th>
                                 <th
                                     onClick={() => handleSort('ciclo')}
-                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
+                                    style={{ padding: '12px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
                                 >
                                     Ciclo (s) {sortConfig?.key === 'ciclo' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                                 </th>
                                 <th
                                     onClick={() => handleSort('consumo')}
-                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
+                                    style={{ padding: '12px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
                                 >
                                     Consumo Total {sortConfig?.key === 'consumo' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                                 </th>
                                 <th
                                     onClick={() => handleSort('custo')}
-                                    style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
+                                    style={{ padding: '12px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none', borderBottom: '1px solid var(--border-card)' }}
                                 >
                                     Custo (1k) {sortConfig?.key === 'custo' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                                 </th>
-                                <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Dimensões</th>
-                                <th style={{ padding: '16px 20px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Ações</th>
+                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Dimensões</th>
+                                <th style={{ padding: '12px 20px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -423,23 +423,19 @@ export default function FichasPage() {
                                 const totalInk = f.cyan + f.magenta + f.yellow + f.black + f.white + f.varnish;
                                 return (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--border-card)', transition: 'background 0.2s' }} className="table-row-hover">
-                                        <td style={{ padding: '16px 20px', fontWeight: 700, color: 'var(--primary-bright)' }}>{f.referencia}</td>
-                                        <td style={{ padding: '16px 20px' }}>
-                                            <div style={{ fontWeight: 600, fontSize: 14 }}>{f.produto}</div>
-                                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{f.decoracao}</div>
+                                        <td style={{ padding: '12px 20px', fontSize: 13, fontWeight: 600 }}>{f.referencia}</td>
+                                        <td style={{ padding: '12px 20px' }}>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-bright)' }}>{f.produto}</div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{f.decoracao}</div>
                                         </td>
-                                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>{f.tempo_s}s</td>
-                                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                                            <span style={{ color: 'var(--success)', fontWeight: 600 }}>{totalInk.toFixed(2)} ml</span>
+                                        <td style={{ padding: '12px 20px', textAlign: 'center', fontSize: 13 }}>{f.tempo_s}s</td>
+                                        <td style={{ padding: '12px 20px', textAlign: 'center', fontSize: 13, color: 'var(--success)', fontWeight: 600 }}>{totalInk.toFixed(2)} ml</td>
+                                        <td style={{ padding: '12px 20px', textAlign: 'center', fontSize: 13, color: 'var(--info)', fontWeight: 600 }}>{fmtMoeda2(f.custo_tinta_total || 0)}</td>
+                                        <td style={{ padding: '12px 20px' }}>
+                                            <div style={{ fontSize: 12, textAlign: 'center' }}>{f.largura} x {f.altura} mm</div>
                                         </td>
-                                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                                            <span style={{ color: 'var(--info)', fontWeight: 600 }}>{fmtMoeda2(f.custo_tinta_total || 0)}</span>
-                                        </td>
-                                        <td style={{ padding: '16px 20px', textAlign: 'center', fontSize: 12 }}>
-                                            {f.largura} x {f.altura} mm
-                                        </td>
-                                        <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                                            <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12, borderRadius: 6 }}>Detalhes</button>
+                                        <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                                            <button className="btn btn-sm" style={{ padding: '4px 12px', fontSize: 12, background: 'rgba(255,255,255,0.05)' }}>Detalhes</button>
                                         </td>
                                     </tr>
                                 )

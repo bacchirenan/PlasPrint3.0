@@ -162,6 +162,20 @@ export interface ChartDataPoint {
   color?: string
 }
 
+export interface InventoryItem {
+  id: string
+  name: string
+  code: string | null
+  quantity: number
+  min_quantity: number | null
+  category: 'peca' | 'tinta'
+  location: string | null
+  image_url: string | null
+  created_at?: string
+  daily_consumption: number
+  lead_time_days: number
+}
+
 export const CORES_TINTA = ['cyan', 'magenta', 'yellow', 'black', 'white', 'varnish'] as const
 export type CorTinta = typeof CORES_TINTA[number]
 
