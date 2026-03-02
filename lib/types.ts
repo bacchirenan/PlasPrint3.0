@@ -176,6 +176,23 @@ export interface InventoryItem {
   lead_time_days: number
 }
 
+export interface MachineEvent {
+  id: string
+  machine_id: string
+  user_id: string
+  event_type: 'occurrence' | 'maintenance' | 'error' | 'part_change'
+  description: string
+  image_url: string | null
+  inventory_item_id: string | null
+  quantity_used: number
+  created_at: string
+  user?: Profile
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fim das Definições de Tipos (Definitive Build Fix v3)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const CORES_TINTA = ['cyan', 'magenta', 'yellow', 'black', 'white', 'varnish'] as const
 export type CorTinta = typeof CORES_TINTA[number]
 
