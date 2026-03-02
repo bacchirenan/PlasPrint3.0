@@ -1,4 +1,4 @@
-// Versão: 17:59 - 02/03/2026
+// Versão: 18:01 - 02/03/2026
 // Tipos compartilhados com PlasPrint Manutenção
 export type UserRole = 'user' | 'master' | 'admin'
 
@@ -124,6 +124,7 @@ export interface MaintenanceItem {
   category_id: string
   target_type: 'machine' | 'room' | 'both'
   created_at?: string
+  category?: MaintenanceCategory
 }
 
 export type Rating = 'ruim' | 'bom' | 'otimo'
@@ -188,6 +189,7 @@ export interface MachineEvent {
   quantity_used: number
   created_at: string
   user?: Profile
+  machine?: Machine
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
