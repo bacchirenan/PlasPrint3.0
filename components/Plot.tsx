@@ -45,6 +45,7 @@ const PlotlyComponent = dynamic(
 )
 
 const Plot = (props: PlotProps) => {
+    // @ts-ignore: Tipagem dinâmica do Next dificulta a inferência exata dos props do plotly
     return <PlotlyComponent {...props} />
 }
 
