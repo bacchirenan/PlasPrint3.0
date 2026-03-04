@@ -58,7 +58,7 @@ export default function Navbar({ userRole }: { userRole?: string }) {
                 PlasPrint <span style={{ color: 'var(--primary-accent)' }}>IA</span>
             </h1>
 
-            {/* Links de Navegação (Tabs) - Alinhado com a largura dos cards (maxWidth 1400px) */}
+            {/* Links de Navegação (Tabs) - Alinhado perfeitamente com a largura dos cards e filtros */}
             <div style={{
                 width: '100%',
                 maxWidth: '1400px',
@@ -69,16 +69,18 @@ export default function Navbar({ userRole }: { userRole?: string }) {
                 <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',
-                    gap: '8px 16px',
+                    gap: '12px',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '12px 24px',
+                    padding: '8px 16px',
                     borderRadius: '16px',
-                    background: 'rgba(13, 30, 56, 0.6)', // Estilo similar aos cards
-                    border: '1px solid rgba(59, 130, 246, 0.15)',
+                    background: 'rgba(13, 30, 56, 0.45)', // Identidade visual dos cards
+                    border: '1px solid rgba(59, 130, 246, 0.12)',
                     width: '100%',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+                    backdropFilter: 'blur(12px)',
+                    boxShadow: '0 4px 24px rgba(0, 0, 0, 0.35)',
+                    position: 'relative',
+                    overflow: 'hidden'
                 }}>
                     {filteredItems.map((item) => {
                         const isActive = pathname === item.path
@@ -89,9 +91,11 @@ export default function Navbar({ userRole }: { userRole?: string }) {
                                 className={`nav-tab ${isActive ? 'active' : ''}`}
                                 style={{
                                     fontSize: '15px',
-                                    padding: '10px 16px',
+                                    padding: '12px 20px',
                                     textAlign: 'center',
-                                    minWidth: '100px', // Garante base para quebra
+                                    whiteSpace: 'nowrap', // Impede quebra interna do texto do link
+                                    flex: '1 0 auto',
+                                    maxWidth: '200px'
                                 }}
                             >
                                 {item.name}
@@ -99,25 +103,6 @@ export default function Navbar({ userRole }: { userRole?: string }) {
                         )
                     })}
 
-                    {/* Logout (Discreto e flexível) */}
-                    <button
-                        onClick={handleLogout}
-                        style={{
-                            background: 'none',
-                            border: 'linear-gradient(135deg, rgba(255,255,255,0.05), transparent)',
-                            padding: '10px 16px',
-                            color: 'rgba(255,255,255,0.3)',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px',
-                            transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--danger)'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
-                    >
-                        Sair
-                    </button>
                 </div>
             </div>
         </nav>
