@@ -73,12 +73,13 @@ export default function OeePage() {
         const oeeSum = no29.reduce((a, r) => a + (isNaN(r.oee) ? 0 : r.oee), 0)
         const oeeCount = no29.filter(r => !isNaN(r.oee)).length
 
-        // TEEP Médio: Inclui todas as máquinas
-        const teepSum = filtered.reduce((a, r) => a + r.teep, 0)
+        // TEEP Médio: Inclui todas as máquinas, ignora NaN (paradas previstas)
+        const teepSum = filtered.reduce((a, r) => a + (isNaN(r.teep) ? 0 : r.teep), 0)
+        const teepCount = filtered.filter(r => !isNaN(r.teep)).length
 
         return {
             oee: oeeCount > 0 ? oeeSum / oeeCount : 0,
-            teep: teepSum / filtered.length,
+            teep: teepCount > 0 ? teepSum / teepCount : 0,
         }
     }, [filtered])
 
@@ -170,43 +171,52 @@ export default function OeePage() {
     }
 
     return (
-        <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <div>
-                <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Indicadores de Eficiência</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Análise detalhada de OEE e TEEP por máquina, turno e horário</p>
+        <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: '1400px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Indicadores de Eficiência</h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Análise detalhada de OEE e TEEP por máquina, turno e horário</p>
+                </div>
+                <button className="btn btn-secondary" onClick={load} style={{ height: 40, width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↻</button>
             </div>
 
-            {/* Filtros */}
-            <div className="card" style={{ padding: '20px 24px' }}>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                    <div>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Período</label>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Filtros / Menu Bar */}
+            <div className="card" style={{ padding: '20px', width: '100%' }}>
+                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <div style={{ flex: '1 1 auto', minWidth: '280px' }}>
+                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Período de Análise</label>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '6px 12px', fontSize: 13 }} />
-                            <span style={{ color: 'var(--text-muted)' }}>até</span>
+                                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 12px', fontSize: 13, flex: 1, minWidth: '130px' }} />
+                            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>até</span>
                             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '6px 12px', fontSize: 13 }} />
+                                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 12px', fontSize: 13, flex: 1, minWidth: '130px' }} />
                         </div>
                     </div>
-                    <div>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Máquinas</label>
-                        <div style={{ display: 'flex', gap: 6 }}>
+
+                    <div style={{ flex: '2 1 auto', minWidth: '300px' }}>
+                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Seleção de Máquinas</label>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             {MAQ_ORDER.map(k => (
                                 <button key={k}
+                                    style={{ padding: '8px 16px', fontSize: 12, borderRadius: 8, fontWeight: 600, transition: 'all 0.2s' }}
                                     className={`machine-tab ${selMaqs.includes(k) ? 'active' : ''}`}
                                     onClick={() => toggleMaq(k)}>
                                     {k}
                                 </button>
                             ))}
+                            <button
+                                onClick={() => setSelMaqs(selMaqs.length === MAQ_ORDER.length ? [] : MAQ_ORDER)}
+                                style={{ padding: '8px 12px', fontSize: 11, color: 'var(--primary-accent)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                                {selMaqs.length === MAQ_ORDER.length ? 'DESELECIONAR TODAS' : 'SELECIONAR TODAS'}
+                            </button>
                         </div>
                     </div>
-                    <button className="btn btn-secondary" onClick={load} style={{ marginLeft: 'auto' }}>↻</button>
                 </div>
             </div>
 
             {/* KPIs */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
                 <div className="card" style={{ padding: 24, textAlign: 'center' }}>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>OEE Médio</div>
                     <div style={{ fontSize: 40, fontWeight: 900, color: 'var(--primary-accent)' }}>{fmtP(metrics.oee)}</div>

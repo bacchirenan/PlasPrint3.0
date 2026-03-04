@@ -36,6 +36,7 @@ export interface OeeRow {
   disponibilidade: number
   performance: number
   qualidade: number
+  utilizacao: number
   teep: number
   oee: number
   is_parada_prevista?: boolean

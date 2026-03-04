@@ -138,28 +138,24 @@ export function parseProducaoXlsx(buffer: ArrayBuffer): ProducaoRow[] {
 
 /**
  * Parseia o arquivo "oee teep.xlsx".
- * Estrutura: skipRows=1
- * Colunas: B=máquina, C=data, D=turno, E=hora, H=disp, I=perf, J=qual, K=teep, L=oee
+ * Colunas solicitadas: B=máquina, C=data, D=turno, E=hora, H=disp, I=perf, J=qual
  */
 export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): OeeRow[] {
     const wb = XLSX.read(buffer, { type: 'array', cellDates: false })
     const ws = wb.Sheets[wb.SheetNames[0]]
+    if (!ws) return []
     const raw: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null })
 
     const rows = raw.slice(1) // pular 1ª linha
     const result: OeeRow[] = []
 
-    // Montar set de paradas previstas a partir do producao
+    // Montar set de paradas previstas a partir do arquivo producao
     const paradasPrevistas = new Set<string>()
     for (const p of producaoRows) {
-        if (p.registro.toLowerCase().includes('parada prevista')) {
+        if (p.registro.toUpperCase().includes('PARADA PREVISTA')) {
             paradasPrevistas.add(`${p.maquina}|${p.data}|${p.hora}`)
         }
     }
-
-    // Horas ativas por data/hora (pelo menos 1 máquina com oee > 0)
-    const activeHours = new Set<string>()
-    const tempRows: OeeRow[] = []
 
     for (const row of rows) {
         if (!row || !row[1]) continue
@@ -177,33 +173,40 @@ export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): 
         if (!turno) continue
 
         const hora = toNum(row[4])
-        const oee = Math.min(toPercent(row[11]), 1.05)
-        const teep = Math.min(toPercent(row[10]), 1.0)
 
-        if (oee > 0) activeHours.add(`${dateStr}|${hora}`)
+        // Coleta índices brutos
+        const disp = toPercent(row[7]) // Col H
+        const perf = toPercent(row[8]) // Col I
+        const qual = toPercent(row[9]) // Col J
+        const teepOrig = toPercent(row[10]) // Col K
+        const oeeOrig = toPercent(row[11]) // Col L
 
+        // Utilização = TEEP / OEE (derivado do Excel)
+        const utilizacao = oeeOrig > 0 ? teepOrig / oeeOrig : 0
+
+        // OEE = Disponibilidade x Performance X Qualidade
+        let oeeCalc = disp * perf * qual
+
+        // TEEP = Utilização x OEE (Fórmula nova)
+        let teepCalc = utilizacao * oeeCalc
+
+        // Regra de Exclusão: Se for Parada Prevista, marcamos como NaN
         const key = `${maq}|${dateStr}|${hora}`
         const isParada = paradasPrevistas.has(key)
 
-        tempRows.push({
+        result.push({
             maquina: maq,
             data: dateStr,
             turno,
             hora,
-            disponibilidade: toPercent(row[7]),
-            performance: toPercent(row[8]),
-            qualidade: toPercent(row[9]),
-            teep,
-            oee: isParada ? NaN : oee,
+            disponibilidade: disp,
+            performance: perf,
+            qualidade: qual,
+            utilizacao: utilizacao,
+            teep: isParada ? NaN : Math.min(teepCalc, 1.0),
+            oee: isParada ? NaN : Math.min(oeeCalc, 1.05),
             is_parada_prevista: isParada,
         })
-    }
-
-    // Filtrar apenas horas onde alguma máquina estava ativa (industry-exclusion)
-    for (const row of tempRows) {
-        if (activeHours.has(`${row.data}|${row.hora}`)) {
-            result.push(row)
-        }
     }
 
     return result
@@ -238,13 +241,16 @@ export function parseCanudosXlsx(buffer: ArrayBuffer): CanudosData {
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) as unknown[][]
         const result: CanudoRow[] = []
 
+        let lastDate = ''
         // Itera sobre as linhas da planilha específica
         for (let i = 0; i < raw.length; i++) {
             const row = raw[i]
             if (!row || row.length < 5) continue
 
             const dateStr = parseDate(row[0]) // Col A
-            if (!dateStr) continue
+            if (dateStr) lastDate = dateStr
+
+            if (!lastDate) continue
 
             const turnoRaw = String(row[1] ?? '').toUpperCase() // Col B
             const turnoFinal = (turnoRaw.includes('B') || turnoRaw.includes('2')) ? 'Turno B' : 'Turno A'
@@ -255,10 +261,10 @@ export function parseCanudosXlsx(buffer: ArrayBuffer): CanudosData {
             if (boas > 0 || perdas > 0) {
                 const opCod = toNum(row[3]) // Col D
                 const opNome = OP_MAP[opCod] || String(row[3] ?? '').trim()
-                const d = new Date(dateStr + 'T12:00:00Z')
+                const d = new Date(lastDate + 'T12:00:00Z')
 
                 result.push({
-                    data: dateStr,
+                    data: lastDate,
                     turno: turnoFinal,
                     os: String(row[2] ?? '').trim(),
                     operador: String(row[3] ?? '').trim(),
