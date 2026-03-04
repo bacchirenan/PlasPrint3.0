@@ -40,4 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Next.js 16: middleware.ts deprecated, use proxy.ts
+middleware.ts
+lib/supabase/middleware.ts
+
 .vercel
