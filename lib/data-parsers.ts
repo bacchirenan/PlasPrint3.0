@@ -151,8 +151,14 @@ export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): 
 
     // Montar set de paradas previstas a partir do arquivo producao
     const paradasPrevistas = new Set<string>()
+    const EXCLUDE_CODES = ['0097', '0007', '0083', '0099', '0101', '0102']
+
     for (const p of producaoRows) {
-        if (p.registro.toUpperCase().includes('PARADA PREVISTA')) {
+        const registro = p.registro.toUpperCase()
+        const isExcludedCode = EXCLUDE_CODES.some(code => registro.startsWith(code))
+        const isParadaTexto = registro.includes('PARADA PREVISTA')
+
+        if (isExcludedCode || isParadaTexto) {
             paradasPrevistas.add(`${p.maquina}|${p.data}|${p.hora}`)
         }
     }
@@ -164,10 +170,6 @@ export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): 
 
         const dateStr = parseDate(row[2])
         if (!dateStr) continue
-
-        // Filtro dias úteis
-        const dow = dayOfWeek(dateStr)
-        if (dow === 0 || dow === 6) continue
 
         const turno = mapShift(row[3])
         if (!turno) continue

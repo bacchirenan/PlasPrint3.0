@@ -171,7 +171,15 @@ export default function OeePage() {
     }
 
     return (
-        <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: '1400px', margin: '0 auto' }}>
+        <div className="page-container" style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 20,
+            width: '100%',
+            maxWidth: '1400px',
+            margin: '0 auto',
+            padding: '0 20px' // Mesma borda da Navbar
+        }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
                 <div>
                     <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Indicadores de Eficiência</h1>

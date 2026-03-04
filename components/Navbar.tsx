@@ -62,7 +62,7 @@ export default function Navbar({ userRole }: { userRole?: string }) {
             <div style={{
                 width: '100%',
                 maxWidth: '1400px',
-                padding: '0 40px',
+                padding: '0 20px',
                 display: 'flex',
                 justifyContent: 'center'
             }}>
