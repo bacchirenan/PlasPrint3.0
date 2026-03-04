@@ -250,8 +250,8 @@ export default function FichasPage() {
                             <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Distribuição de Tintas por Cor (%)</h4>
                             <Plot
                                 data={[{
-                                    values: Object.values(performanceMetrics.totalsByColor),
-                                    labels: Object.keys(performanceMetrics.totalsByColor),
+                                    values: ['cyan', 'magenta', 'yellow', 'black', 'white', 'varnish'].map(c => performanceMetrics.totalsByColor[c] || 0),
+                                    labels: ['Cyan', 'Magenta', 'Yellow', 'Black', 'White', 'Varnish'],
                                     type: 'pie',
                                     hole: 0.4,
                                     marker: {
@@ -259,13 +259,19 @@ export default function FichasPage() {
                                     },
                                     textinfo: 'label+percent',
                                     textposition: 'inside',
+                                    insidetextfont: {
+                                        family: 'var(--font-primary-local), sans-serif',
+                                        color: ['#000', '#fff', '#000', '#fff', '#000', '#fff'], // Preto para Cyan, Yellow e White
+                                        size: 11
+                                    },
                                     showlegend: true
                                 }]}
                                 layout={{
-                                    height: 350,
+                                    height: 380,
                                     margin: { t: 20, b: 20, l: 0, r: 0 },
                                     paper_bgcolor: 'transparent',
-                                    legend: { font: { color: '#fff' }, orientation: 'h', x: 0, y: -0.1 }
+                                    font: { family: 'var(--font-primary-local), sans-serif', color: '#fff' },
+                                    legend: { font: { family: 'var(--font-primary-local), sans-serif', color: '#fff' }, orientation: 'h', x: 0, y: -0.1 }
                                 }}
                                 config={{ displayModeBar: false, responsive: true }}
                                 style={{ width: '100%' }}
@@ -282,6 +288,7 @@ export default function FichasPage() {
                                     hole: 0.4,
                                     textinfo: 'percent',
                                     textposition: 'inside',
+                                    textfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 10 },
                                     marker: {
                                         colors: ['#1e3a8a', '#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#34d399', '#10b981', '#059669', '#047857', '#065f46']
                                     },
@@ -291,7 +298,8 @@ export default function FichasPage() {
                                     height: 350,
                                     margin: { t: 0, b: 0, l: 0, r: 0 },
                                     paper_bgcolor: 'transparent',
-                                    legend: { font: { color: '#fff', size: 10 }, x: 0, y: -0.3, orientation: 'h' }
+                                    font: { family: 'var(--font-primary-local), sans-serif', color: '#fff' },
+                                    legend: { font: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 10 }, x: 0, y: -0.3, orientation: 'h' }
                                 }}
                                 config={{ displayModeBar: false, responsive: true }}
                                 style={{ width: '100%' }}
@@ -319,9 +327,9 @@ export default function FichasPage() {
                         </div>
                     </div>
 
-                    {config?.imposto > 0 && (
+                    {config !== null && (
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: -10, marginBottom: 24 }}>
-                            *Imposto de importação de {config.imposto.toFixed(2)}% já incluído.
+                            *Imposto de importação de {(config?.imposto ?? 0).toFixed(2)}% já incluído nos valores acima.
                         </p>
                     )}
 

@@ -42,16 +42,19 @@ export async function fetchFileFromGitHub(filePath: string): Promise<Buffer> {
  * Busca um arquivo XLSX do GitHub e retorna como ArrayBuffer para o xlsx parser.
  */
 export async function fetchXlsxFromGitHub(filePath: string): Promise<ArrayBuffer> {
-    const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${encodeURIComponent(filePath)}`
+    const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${encodeURIComponent(filePath)}?v=${Date.now()}`
 
-    const headers: HeadersInit = {}
+    const headers: HeadersInit = {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+    }
     if (GITHUB_TOKEN) {
         headers['Authorization'] = `token ${GITHUB_TOKEN}`
     }
 
     const res = await fetch(url, {
         headers,
-        next: { revalidate: 300 },
+        next: { revalidate: 0 },
     })
 
     if (!res.ok) {

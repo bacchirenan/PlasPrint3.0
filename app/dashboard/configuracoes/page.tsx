@@ -42,19 +42,18 @@ export default function ConfiguracoesPage() {
     const handleSave = async () => {
         setSaving(true)
         try {
-            // Salva preços
-            for (const cor of CORES_TINTA) {
-                await supabase.from('ink_costs').upsert({
-                    cor,
-                    preco_litro_usd: inkCosts[cor] || 0,
-                    preco_litro_brl: (inkCosts[cor] || 0) * dolar
-                })
-            }
-            // Salva imposto
-            await supabase.from('app_config').upsert({ chave: 'import_tax', valor: importTax })
+            const res = await fetch('/api/config/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inkCosts, importTax, dolar })
+            })
+            const data = await res.json()
+            if (!data.ok) throw new Error(data.error || 'Erro desconhecido')
             alert('Configurações salvas com sucesso!')
         } catch (e) {
-            alert('Erro ao salvar.')
+            const msg = e instanceof Error ? e.message : String(e)
+            alert(`Erro ao salvar:\n\n${msg}`)
+            console.error('[Configurações] Erro:', e)
         } finally {
             setSaving(false)
         }
