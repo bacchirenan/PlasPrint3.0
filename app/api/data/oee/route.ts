@@ -3,7 +3,7 @@ import { fetchXlsxFromGitHub } from '@/lib/github-data'
 import { parseOeeXlsx, parseProducaoXlsx } from '@/lib/data-parsers'
 
 export const dynamic = 'force-dynamic'
-export const revalidate = 300
+export const revalidate = 0
 
 export async function GET() {
     try {
@@ -15,7 +15,11 @@ export async function GET() {
         const producaoRows = parseProducaoXlsx(prodBuffer)
         const oeeRows = parseOeeXlsx(oeeBuffer, producaoRows)
 
-        return NextResponse.json({ data: oeeRows, count: oeeRows.length })
+        return NextResponse.json({
+            data: oeeRows,
+            producao: producaoRows,
+            count: oeeRows.length
+        })
     } catch (err) {
         console.error('[API /data/oee]', err)
         return NextResponse.json(
@@ -24,3 +28,4 @@ export async function GET() {
         )
     }
 }
+

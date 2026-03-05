@@ -70,11 +70,9 @@ export default function ProducaoPage() {
     const dateToPickerRef = useRef<HTMLInputElement>(null)
 
     // Filtros
-    const today = new Date().toISOString().split('T')[0]
-    const [dateFrom, setDateFrom] = useState(() => {
-        const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
-    })
-    const [dateTo, setDateTo] = useState(today)
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    const [dateFrom, setDateFrom] = useState(yesterday)
+    const [dateTo, setDateTo] = useState(yesterday)
     const [selMaqs, setSelMaqs] = useState<string[]>(MAQ_ORDER)
 
     const load = useCallback(async () => {
@@ -148,6 +146,38 @@ export default function ProducaoPage() {
             x: datesDisplay,
             y: ys,
             media: ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : 0
+        }
+    }, [filtered])
+
+    // ─ Gráfico Horas Produzidas por Máquina (Média Diária)
+    const chartProducedHours = useMemo(() => {
+        const acc: Record<string, Record<string, number>> = {} // { data: { maq: segundos } }
+        const dates = new Set<string>()
+
+        for (const r of filtered) {
+            if (r.registro.toLowerCase().includes('produção')) {
+                if (!acc[r.data]) acc[r.data] = {}
+                acc[r.data][r.maquina] = (acc[r.data][r.maquina] || 0) + r.tempo_segundos
+                dates.add(r.data)
+            }
+        }
+
+        const nDays = dates.size || 1
+        const totals: Record<string, number> = {}
+        for (const d of Array.from(dates)) {
+            for (const m in acc[d]) {
+                totals[m] = (totals[m] || 0) + acc[d][m]
+            }
+        }
+
+        const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
+        const yValues = sortedFullNames.map(name => (totals[name] || 0) / (3600 * nDays))
+
+        return {
+            x: sortedFullNames.map(cleanMaqKey),
+            y: yValues,
+            text: yValues.map(v => v.toFixed(1)),
+            avg: yValues.length ? yValues.reduce((a, b) => a + b, 0) / yValues.length : 0
         }
     }, [filtered])
 
@@ -339,16 +369,16 @@ export default function ProducaoPage() {
             </div>
 
             {/* KPIs */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
                 {[
-                    { label: 'Total de Peças', value: fmtN(metrics.total), color: 'var(--primary-bright)' },
+                    { label: 'Total Peças', value: fmtN(metrics.total), color: 'var(--primary-bright)' },
                     { label: 'Peças Boas', value: fmtN(metrics.boas), color: 'var(--success)' },
                     { label: 'Rejeitos', value: fmtN(metrics.rej), color: 'var(--danger)' },
-                    { label: '% Peças Boas', value: `${(metrics.pctBoas * 100).toFixed(2)}%`, color: 'var(--success)' },
-                    { label: '% Rejeitos', value: `${(metrics.pctRej * 100).toFixed(2)}%`, color: 'var(--danger)' },
+                    { label: '% Boas', value: `${(metrics.pctBoas * 100).toFixed(1)}%`, color: 'var(--success)' },
+                    { label: '% Rejeitos', value: `${(metrics.pctRej * 100).toFixed(1)}%`, color: 'var(--danger)' },
                 ].map(card => (
-                    <div key={card.label} className="card" style={{ padding: '16px 12px', textAlign: 'center' }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, fontWeight: 600 }}>{card.label}</div>
+                    <div key={card.label} className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2, fontWeight: 700 }}>{card.label}</div>
                         <div style={{ fontSize: 22, fontWeight: 900, color: card.color }}>{card.value}</div>
                     </div>
                 ))}
@@ -395,6 +425,7 @@ export default function ProducaoPage() {
                     style={{ width: '100%' }}
                 />
             </div>
+
 
             {/* Produção Diária */}
             <div className="card" style={{ padding: 20 }}>
@@ -493,19 +524,21 @@ export default function ProducaoPage() {
                     <div className="card-title" style={{ marginBottom: 16 }}>Peças Produzidas por Operador</div>
                     <Plot
                         data={[{
-                            type: 'bar', orientation: 'h', x: chartByOp.x, y: chartByOp.y,
-                            text: chartByOp.x.map(fmtN), textposition: 'inside', insidetextanchor: 'end',
-                            textfont: { color: 'white', family: 'var(--font-primary-local), sans-serif', weight: 800 },
-                            marker: { color: ['#1a335f', '#4466b1', '#00adef', '#09a38c'] }
+                            type: 'bar', x: chartByOp.y.map(s => s.replace(' - ', '<br>')), y: chartByOp.x,
+                            text: chartByOp.x.map(fmtN), textposition: 'outside',
+                            textfont: { color: 'white', family: 'var(--font-primary-local), sans-serif', weight: 800, size: 10 },
+                            marker: { color: ['#1a335f', '#4466b1', '#00adef', '#09a38c'] },
+                            cliponaxis: false
                         }]}
                         layout={{
                             ...LAYOUT_BASE, height: 420,
-                            xaxis: { visible: false },
-                            yaxis: {
-                                tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 8.5 },
+                            yaxis: { visible: false, range: [0, Math.max(...chartByOp.x, 10) * 1.25] },
+                            xaxis: {
+                                tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 9 },
+                                tickangle: 0,
                                 automargin: true
                             },
-                            margin: { t: 20, b: 20, l: 100, r: 20 }
+                            margin: { t: 40, b: 60, l: 40, r: 40 }
                         }}
                         config={{ displayModeBar: false, responsive: true }}
                         style={{ width: '100%' }}
@@ -517,19 +550,21 @@ export default function ProducaoPage() {
                     <div className="card-title" style={{ marginBottom: 16 }}>Top 10 Produtos Mais Fabricados</div>
                     <Plot
                         data={[{
-                            type: 'bar', orientation: 'h', x: chartTopProd.x, y: chartTopProd.y,
-                            text: chartTopProd.x.map(fmtN), textposition: 'inside', insidetextanchor: 'end',
-                            textfont: { color: 'white', family: 'var(--font-primary-local), sans-serif', weight: 800 },
-                            marker: { color: chartTopProd.x, colorscale: [[0, '#1a335f'], [0.5, '#00adef'], [1, '#89c153']], showscale: false }
+                            type: 'bar', x: chartTopProd.y.map(s => s.length > 15 ? s.substring(0, 15) + '...' : s), y: chartTopProd.x,
+                            text: chartTopProd.x.map(fmtN), textposition: 'outside',
+                            textfont: { color: 'white', family: 'var(--font-primary-local), sans-serif', weight: 800, size: 9 },
+                            marker: { color: chartTopProd.x, colorscale: [[0, '#1a335f'], [0.5, '#00adef'], [1, '#89c153']], showscale: false },
+                            cliponaxis: false
                         }]}
                         layout={{
-                            ...LAYOUT_BASE, height: 420,
-                            xaxis: { visible: false },
-                            yaxis: {
-                                tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 8.5 },
+                            ...LAYOUT_BASE, height: 450,
+                            yaxis: { visible: false, range: [0, Math.max(...chartTopProd.x, 10) * 1.3] },
+                            xaxis: {
+                                tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 8 },
+                                tickangle: 0,
                                 automargin: true
                             },
-                            margin: { t: 20, b: 20, l: 120, r: 20 }
+                            margin: { t: 40, b: 60, l: 40, r: 40 }
                         }}
                         config={{ displayModeBar: false, responsive: true }}
                         style={{ width: '100%' }}
@@ -557,24 +592,26 @@ export default function ProducaoPage() {
                 {dtView === 'motivo' ? (
                     <Plot
                         data={[{
-                            type: 'bar', orientation: 'h',
-                            x: chartDowntime.x as number[], y: chartDowntime.y as string[],
-                            text: (chartDowntime.x as number[]).map(h => `${h.toFixed(2)} h`),
-                            textposition: 'inside', insidetextanchor: 'end',
-                            textfont: { color: 'white', family: 'var(--font-primary-local), sans-serif', weight: 800 },
+                            type: 'bar',
+                            x: (chartDowntime.y as string[]).map(s => s.length > 12 ? s.substring(0, 12) + '...' : s), y: chartDowntime.x as number[],
+                            text: (chartDowntime.x as number[]).map(h => `${h.toFixed(2)}h`),
+                            textposition: 'outside',
+                            textfont: { color: 'white', family: 'var(--font-primary-local), sans-serif', weight: 800, size: 10 },
                             marker: {
                                 color: chartDowntime.x as number[],
                                 colorscale: [[0, '#4466b1'], [0.5, '#1a335f'], [1, '#f87171']], showscale: false
-                            }
+                            },
+                            cliponaxis: false
                         }]}
                         layout={{
-                            ...LAYOUT_BASE, height: 480,
-                            xaxis: { visible: false },
-                            yaxis: {
-                                tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 9 },
+                            ...LAYOUT_BASE, height: 500,
+                            yaxis: { visible: false, range: [0, Math.max(...(chartDowntime.x as number[]), 1) * 1.3] },
+                            xaxis: {
+                                tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 8.5 },
+                                tickangle: 0,
                                 automargin: true
                             },
-                            margin: { t: 20, b: 20, l: 120, r: 20 }
+                            margin: { t: 40, b: 60, l: 40, r: 40 }
                         }}
                         config={{ displayModeBar: false, responsive: true }}
                         style={{ width: '100%' }}

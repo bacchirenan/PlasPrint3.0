@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import type { OeeRow } from '@/lib/types'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import type { OeeRow, ProducaoRow } from '@/lib/types'
 import Plot from '@/components/Plot'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -10,6 +10,28 @@ const MAQ_MAP: Record<string, string> = {
     '180': '180- CX-360G', '181': '181- CX-360G', '182': '182- CX-360G',
 }
 const MAQ_ORDER = ['28', '29', '180', '181', '182']
+
+// Converte yyyy-mm-dd → dd/mm/aaaa (exibição)
+function isoToBr(iso: string) {
+    if (!iso || iso.length !== 10) return ''
+    const [y, m, d] = iso.split('-')
+    return `${d}/${m}/${y}`
+}
+
+// Converte dd/mm/aaaa → yyyy-mm-dd (interno)
+function brToIso(br: string) {
+    const clean = br.replace(/\D/g, '')
+    if (clean.length !== 8) return ''
+    return `${clean.slice(4)}-${clean.slice(2, 4)}-${clean.slice(0, 2)}`
+}
+
+// Aplica máscara dd/mm/aaaa enquanto digita
+function maskDate(value: string) {
+    const digits = value.replace(/\D/g, '').slice(0, 8)
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
 
 function cleanMaqKey(name: string) {
     return name.split('-')[0].trim()
@@ -22,21 +44,24 @@ function fmtP(n: number) {
 const LAYOUT_BASE = {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#93b8f0', family: 'inherit', size: 11 },
+    font: { color: '#93b8f0', family: 'var(--font-primary-local), sans-serif', size: 11 },
     margin: { t: 40, b: 50, l: 40, r: 20 },
 }
 
 export default function OeePage() {
     const [rows, setRows] = useState<OeeRow[]>([])
+    const [producaoRows, setProducaoRows] = useState<ProducaoRow[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
+    // Refs para os date pickers ocultos
+    const dateFromPickerRef = useRef<HTMLInputElement>(null)
+    const dateToPickerRef = useRef<HTMLInputElement>(null)
+
     // Filtros
-    const today = new Date().toISOString().split('T')[0]
-    const [dateFrom, setDateFrom] = useState(() => {
-        const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
-    })
-    const [dateTo, setDateTo] = useState(today)
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    const [dateFrom, setDateFrom] = useState(yesterday)
+    const [dateTo, setDateTo] = useState(yesterday)
     const [selMaqs, setSelMaqs] = useState<string[]>(MAQ_ORDER)
 
     const load = useCallback(async () => {
@@ -47,6 +72,7 @@ export default function OeePage() {
             const json = await res.json()
             if (json.error) throw new Error(json.error)
             setRows(json.data)
+            setProducaoRows(json.producao || [])
         } catch (e) {
             setError(String(e))
         } finally {
@@ -65,77 +91,101 @@ export default function OeePage() {
         })
     }, [rows, selMaqs, dateFrom, dateTo])
 
+    // ─ Métricas Gerais
     const metrics = useMemo(() => {
         if (!filtered.length) return { oee: 0, teep: 0 }
+        const oee = filtered.reduce((a, r) => a + r.oee, 0) / filtered.length
+        const teep = filtered.reduce((a, r) => a + r.teep, 0) / filtered.length
+        return { oee, teep }
+    }, [filtered])
 
-        // OEE Médio: Excluir M29 conforme regra de negócio
-        const no29 = filtered.filter(r => !r.maquina.includes('29-CX'))
-        const oeeSum = no29.reduce((a, r) => a + (isNaN(r.oee) ? 0 : r.oee), 0)
-        const oeeCount = no29.filter(r => !isNaN(r.oee)).length
+    // ─ Gráfico Horas Produzidas por Máquina (Média Diária)
+    const chartProducedHours = useMemo(() => {
+        const selOriginals = selMaqs.map(k => MAQ_MAP[k]).filter(Boolean)
+        const filtProd = producaoRows.filter(r => {
+            if (!selOriginals.includes(r.maquina)) return false
+            if (r.data < dateFrom || r.data > dateTo) return false
+            return true
+        })
 
-        // TEEP Médio: Inclui todas as máquinas, ignora NaN (paradas previstas)
-        const teepSum = filtered.reduce((a, r) => a + (isNaN(r.teep) ? 0 : r.teep), 0)
-        const teepCount = filtered.filter(r => !isNaN(r.teep)).length
+        const acc: Record<string, Record<string, number>> = {}
+        const dates = new Set<string>()
+
+        for (const r of filtProd) {
+            if (r.registro.toLowerCase().includes('produção')) {
+                if (!acc[r.data]) acc[r.data] = {}
+                acc[r.data][r.maquina] = (acc[r.data][r.maquina] || 0) + r.tempo_segundos
+                dates.add(r.data)
+            }
+        }
+
+        const nDays = dates.size || 1
+        const totals: Record<string, number> = {}
+        for (const d of Array.from(dates)) {
+            for (const m in acc[d]) {
+                totals[m] = (totals[m] || 0) + acc[d][m]
+            }
+        }
+
+        const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
+        const yValues = sortedFullNames.map(name => (totals[name] || 0) / (3600 * nDays))
 
         return {
-            oee: oeeCount > 0 ? oeeSum / oeeCount : 0,
-            teep: teepCount > 0 ? teepSum / teepCount : 0,
+            x: sortedFullNames,
+            y: yValues,
+            text: yValues.map(v => v.toFixed(1)),
+            avg: yValues.length ? yValues.reduce((a, b) => a + b, 0) / yValues.length : 0
         }
-    }, [filtered])
+    }, [producaoRows, selMaqs, dateFrom, dateTo])
 
     // ─ Gráfico Evolução Temporal
     const chartTimeline = useMemo(() => {
-        const daily: Record<string, { oeeSum: number, oeeCount: number, teepSum: number, teepCount: number }> = {}
+        const daily: Record<string, { oeeSum: number, n: number, teepSum: number }> = {}
         for (const r of filtered) {
-            if (!daily[r.data]) daily[r.data] = { oeeSum: 0, oeeCount: 0, teepSum: 0, teepCount: 0 }
-            if (!isNaN(r.oee)) {
-                daily[r.data].oeeSum += r.oee
-                daily[r.data].oeeCount++
-            }
+            if (!daily[r.data]) daily[r.data] = { oeeSum: 0, n: 0, teepSum: 0 }
+            daily[r.data].oeeSum += r.oee
             daily[r.data].teepSum += r.teep
-            daily[r.data].teepCount++
+            daily[r.data].n++
         }
         const dates = Object.keys(daily).sort()
+        const labels = dates.map(d => { const [, m, day] = d.split('-'); return `${day}/${m}` })
         return {
-            x: dates,
-            oee: dates.map(d => daily[d].oeeCount > 0 ? daily[d].oeeSum / daily[d].oeeCount : 0),
-            teep: dates.map(d => daily[d].teepCount > 0 ? daily[d].teepSum / daily[d].teepCount : 0),
+            x: labels,
+            oee: dates.map(d => daily[d].oeeSum / daily[d].n),
+            teep: dates.map(d => daily[d].teepSum / daily[d].n),
         }
     }, [filtered])
 
-    // ─ Gráfico por Hora
     const chartHourly = useMemo(() => {
-        const hourly: Record<number, { oeeSum: number, oeeCount: number, teepSum: number, teepCount: number }> = {}
+        const hourly: Record<number, { oeeSum: number, n: number, teepSum: number }> = {}
         for (const r of filtered) {
-            if (!hourly[r.hora]) hourly[r.hora] = { oeeSum: 0, oeeCount: 0, teepSum: 0, teepCount: 0 }
-            if (!isNaN(r.oee)) {
-                hourly[r.hora].oeeSum += r.oee
-                hourly[r.hora].oeeCount++
-            }
+            if (!hourly[r.hora]) hourly[r.hora] = { oeeSum: 0, n: 0, teepSum: 0 }
+            hourly[r.hora].oeeSum += r.oee
             hourly[r.hora].teepSum += r.teep
-            hourly[r.hora].teepCount++
+            hourly[r.hora].n++
         }
-        const hours = Array.from({ length: 24 }, (_, i) => i).filter(h => hourly[h])
+        const hours = Object.keys(hourly).map(Number).sort((a, b) => a - b)
         return {
-            x: hours,
-            oee: hours.map(h => hourly[h].oeeCount > 0 ? hourly[h].oeeSum / hourly[h].oeeCount : 0),
-            teep: hours.map(h => hourly[h].teepCount > 0 ? hourly[h].teepSum / hourly[h].teepCount : 0),
+            x: hours.map(h => `${h}h`),
+            oee: hours.map(h => hourly[h].oeeSum / hourly[h].n),
+            teep: hours.map(h => hourly[h].teepSum / hourly[h].n),
         }
     }, [filtered])
 
-    // ─ Gráfico por Máquina
     const chartByMaq = useMemo(() => {
-        const acc: Record<string, { oeeSum: number, oeeCount: number }> = {}
+        const maq: Record<string, { oeeSum: number, n: number, teepSum: number }> = {}
         for (const r of filtered) {
-            const k = cleanMaqKey(r.maquina)
-            if (!acc[k]) acc[k] = { oeeSum: 0, oeeCount: 0 }
-            if (!isNaN(r.oee)) {
-                acc[k].oeeSum += r.oee
-                acc[k].oeeCount++
-            }
+            if (!maq[r.maquina]) maq[r.maquina] = { oeeSum: 0, n: 0, teepSum: 0 }
+            maq[r.maquina].oeeSum += r.oee
+            maq[r.maquina].teepSum += r.teep
+            maq[r.maquina].n++
         }
-        const xs = MAQ_ORDER.filter(k => acc[k])
-        return { x: xs, y: xs.map(k => acc[k].oeeCount > 0 ? acc[k].oeeSum / acc[k].oeeCount : 0) }
+        const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
+        return {
+            x: sortedFullNames,
+            oee: sortedFullNames.map(name => maq[name] ? maq[name].oeeSum / maq[name].n : 0),
+            teep: sortedFullNames.map(name => maq[name] ? maq[name].teepSum / maq[name].n : 0)
+        }
     }, [filtered])
 
     // ─ Heatmap de OEE
@@ -144,16 +194,14 @@ export default function OeePage() {
         const dates = new Set<string>()
         for (const r of filtered) {
             if (!acc[r.hora]) acc[r.hora] = {}
-            if (!isNaN(r.oee)) {
+            if (r.oee > 0) {
                 acc[r.hora][r.data] = r.oee
                 dates.add(r.data)
             }
         }
         const sortedDates = Array.from(dates).sort()
         const sortedHours = Object.keys(acc).map(Number).sort((a, b) => a - b)
-
         const z = sortedHours.map(h => sortedDates.map(d => (acc[h][d] || 0) * 100))
-
         return { x: sortedDates, y: sortedHours, z }
     }, [filtered])
 
@@ -194,11 +242,57 @@ export default function OeePage() {
                     <div style={{ flex: '1 1 auto', minWidth: '280px' }}>
                         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Período de Análise</label>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 12px', fontSize: 13, flex: 1, minWidth: '130px' }} />
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <input
+                                    type="text"
+                                    placeholder="dd/mm/aaaa"
+                                    value={isoToBr(dateFrom)}
+                                    onChange={e => {
+                                        const masked = maskDate(e.target.value)
+                                        const iso = brToIso(masked)
+                                        if (iso) setDateFrom(iso)
+                                    }}
+                                    maxLength={10}
+                                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: '8px 0 0 8px', borderRight: 'none', color: 'var(--text-primary)', padding: '8px 12px', fontSize: 13, width: 112, outline: 'none' }} />
+                                <button
+                                    onClick={() => dateFromPickerRef.current?.showPicker()}
+                                    title="Abrir calendário"
+                                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderLeft: 'none', borderRadius: '0 8px 8px 0', color: 'var(--text-muted)', padding: '8px 10px', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>
+                                    📅
+                                </button>
+                                <input
+                                    ref={dateFromPickerRef}
+                                    type="date"
+                                    value={dateFrom}
+                                    onChange={e => setDateFrom(e.target.value)}
+                                    style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none', top: 0, right: 0 }} />
+                            </div>
                             <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>até</span>
-                            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 12px', fontSize: 13, flex: 1, minWidth: '130px' }} />
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <input
+                                    type="text"
+                                    placeholder="dd/mm/aaaa"
+                                    value={isoToBr(dateTo)}
+                                    onChange={e => {
+                                        const masked = maskDate(e.target.value)
+                                        const iso = brToIso(masked)
+                                        if (iso) setDateTo(iso)
+                                    }}
+                                    maxLength={10}
+                                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: '8px 0 0 8px', borderRight: 'none', color: 'var(--text-primary)', padding: '8px 12px', fontSize: 13, width: 112, outline: 'none' }} />
+                                <button
+                                    onClick={() => dateToPickerRef.current?.showPicker()}
+                                    title="Abrir calendário"
+                                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderLeft: 'none', borderRadius: '0 8px 8px 0', color: 'var(--text-muted)', padding: '8px 10px', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>
+                                    📅
+                                </button>
+                                <input
+                                    ref={dateToPickerRef}
+                                    type="date"
+                                    value={dateTo}
+                                    onChange={e => setDateTo(e.target.value)}
+                                    style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none', top: 0, right: 0 }} />
+                            </div>
                         </div>
                     </div>
 
@@ -224,16 +318,14 @@ export default function OeePage() {
             </div>
 
             {/* KPIs */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-                <div className="card" style={{ padding: 24, textAlign: 'center' }}>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>OEE Médio</div>
-                    <div style={{ fontSize: 40, fontWeight: 900, color: 'var(--primary-accent)' }}>{fmtP(metrics.oee)}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Indústria (Exclui M29)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="card" style={{ padding: '16px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>OEE Médio</div>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--primary-accent)' }}>{fmtP(metrics.oee)}</div>
                 </div>
-                <div className="card" style={{ padding: 24, textAlign: 'center' }}>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>TEEP Médio</div>
-                    <div style={{ fontSize: 40, fontWeight: 900, color: 'var(--info)' }}>{fmtP(metrics.teep)}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Tempo Calendário Total</div>
+                <div className="card" style={{ padding: '16px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>TEEP Médio</div>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--info)' }}>{fmtP(metrics.teep)}</div>
                 </div>
             </div>
 
@@ -251,7 +343,7 @@ export default function OeePage() {
                 />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 550px), 1fr))', gap: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* OEE por Hora */}
                 <div className="card" style={{ padding: 20 }}>
                     <div className="card-title">Eficiência por Horário</div>
@@ -268,34 +360,70 @@ export default function OeePage() {
 
                 {/* OEE por Máquina */}
                 <div className="card" style={{ padding: 20 }}>
-                    <div className="card-title">OEE por Máquina</div>
+                    <div className="card-title" style={{ marginBottom: 16 }}>OEE por Máquina</div>
                     <Plot
                         data={[{
-                            type: 'bar', x: chartByMaq.x, y: chartByMaq.y,
-                            text: chartByMaq.y.map(fmtP), textposition: 'auto',
-                            marker: { color: ['#1a335f', '#4466b1', '#00adef', '#09a38c', '#89c153'] }
+                            type: 'bar',
+                            x: chartByMaq.x,
+                            y: chartByMaq.oee,
+                            text: chartByMaq.oee.map(fmtP),
+                            textposition: 'outside',
+                            textfont: { color: 'white', size: 12, weight: 800, family: 'var(--font-primary-local), sans-serif' },
+                            marker: {
+                                color: ['#89c153', '#89c153', '#09a38c', '#09a38c', '#00adef'],
+                            },
+                            cliponaxis: false
                         }]}
-                        layout={{ ...LAYOUT_BASE, height: 320, yaxis: { visible: false } }}
+                        layout={{
+                            ...LAYOUT_BASE,
+                            height: 350,
+                            yaxis: { visible: false, range: [0, Math.max(...chartByMaq.oee, 0.5) * 1.3] },
+                            xaxis: {
+                                title: 'Máquina',
+                                tickfont: { color: 'white', weight: 700, family: 'var(--font-primary-local), sans-serif' }
+                            },
+                        }}
                         config={{ displayModeBar: false, responsive: true }}
                         style={{ width: '100%' }}
                     />
                 </div>
             </div>
 
-            {/* Heatmap */}
+            {/* Horas Produzidas por Máquina */}
             <div className="card" style={{ padding: 20 }}>
-                <div className="card-title">Mapa de Calor: Consistência de OEE</div>
+                <div className="card-title" style={{ marginBottom: 16 }}>Horas Produzidas por Máquina</div>
                 <Plot
                     data={[{
-                        type: 'heatmap',
-                        x: chartHeatmap.x,
-                        y: chartHeatmap.y,
-                        z: chartHeatmap.z,
-                        colorscale: [[0, '#0a1929'], [0.2, '#1a335f'], [0.5, '#4466b1'], [0.8, '#09a38c'], [1, '#89c153']],
-                        zmin: 0, zmax: 100,
-                        hovertemplate: 'Data: %{x}<br>Hora: %{y}h<br>OEE: %{z:.1f}%<extra></extra>'
+                        type: 'bar',
+                        x: chartProducedHours.x,
+                        y: chartProducedHours.y,
+                        text: chartProducedHours.text,
+                        textposition: 'outside',
+                        textfont: { color: 'white', size: 14, weight: 800, family: 'var(--font-primary-local), sans-serif' },
+                        marker: {
+                            color: chartProducedHours.y.map(v => v >= chartProducedHours.avg ? '#89c153' : '#1a335f')
+                        },
+                        cliponaxis: false
                     }]}
-                    layout={{ ...LAYOUT_BASE, height: 450, xaxis: { tickangle: -45 }, yaxis: { title: 'Hora', dtick: 1 } }}
+                    layout={{
+                        ...LAYOUT_BASE,
+                        height: 350,
+                        yaxis: { visible: false, range: [0, Math.max(...chartProducedHours.y, 1) * 1.3] },
+                        xaxis: {
+                            tickfont: { color: 'white', weight: 700, family: 'var(--font-primary-local), sans-serif' }
+                        },
+                        shapes: [{
+                            type: 'line', x0: 0, x1: 1, xref: 'paper',
+                            y0: chartProducedHours.avg, y1: chartProducedHours.avg,
+                            line: { color: 'rgba(255,255,255,0.6)', dash: 'dash', width: 2 }
+                        }],
+                        annotations: [{
+                            xref: 'paper', yref: 'y', x: 1, y: chartProducedHours.avg,
+                            text: `Média: ${chartProducedHours.avg.toFixed(1)} h/dia`,
+                            showarrow: false, font: { color: 'white', size: 12, family: 'var(--font-primary-local), sans-serif' },
+                            xanchor: 'right', yshift: 15
+                        }]
+                    }}
                     config={{ displayModeBar: false, responsive: true }}
                     style={{ width: '100%' }}
                 />

@@ -29,11 +29,9 @@ export default function CanudosPage() {
     const [loading, setLoading] = useState(true)
 
     // Filtros
-    const today = new Date().toISOString().split('T')[0]
-    const [dateFrom, setDateFrom] = useState(() => {
-        const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
-    })
-    const [dateTo, setDateTo] = useState(today)
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    const [dateFrom, setDateFrom] = useState(yesterday)
+    const [dateTo, setDateTo] = useState(yesterday)
 
     const dateFromPickerRef = useRef<HTMLInputElement>(null)
     const dateToPickerRef = useRef<HTMLInputElement>(null)
@@ -218,45 +216,45 @@ export default function CanudosPage() {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-                <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Total de Canudos Encabeçados</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--success)' }}>{statsEnc.boas.toLocaleString('pt-BR')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                <div className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', fontWeight: 700 }}>Total Encab.</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--success)' }}>{statsEnc.boas.toLocaleString('pt-BR')}</div>
                 </div>
-                <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Perdas Encabeçados</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--danger)' }}>{statsEnc.perdas.toLocaleString('pt-BR')}</div>
+                <div className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', fontWeight: 700 }}>Perdas</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--danger)' }}>{statsEnc.perdas.toLocaleString('pt-BR')}</div>
                 </div>
-                <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Eficiência Global (Encabeçados)</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--info)' }}>{(statsEnc.efficiency * 100).toFixed(2)}%</div>
+                <div className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', fontWeight: 700 }}>Efic.</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--info)' }}>{(statsEnc.efficiency * 100).toFixed(1)}%</div>
                 </div>
-                <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>% Perdas Encabeçados</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--warning)' }}>{(statsEnc.pctPerda * 100).toFixed(2)}%</div>
-                </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-                <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Total de Canudos Decorados</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--success)' }}>{statsDec.boas.toLocaleString('pt-BR')}</div>
-                </div>
-                <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Perdas Decorados</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--danger)' }}>{statsDec.perdas.toLocaleString('pt-BR')}</div>
-                </div>
-                <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Eficiência Global (Decorados)</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--info)' }}>{(statsDec.efficiency * 100).toFixed(2)}%</div>
-                </div>
-                <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>% Perdas Decorados</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--warning)' }}>{(statsDec.pctPerda * 100).toFixed(2)}%</div>
+                <div className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', fontWeight: 700 }}>% Perda</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--warning)' }}>{(statsEnc.pctPerda * 100).toFixed(1)}%</div>
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 500px), 1fr))', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                <div className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', fontWeight: 700 }}>Total Dec.</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--success)' }}>{statsDec.boas.toLocaleString('pt-BR')}</div>
+                </div>
+                <div className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', fontWeight: 700 }}>Perdas</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--danger)' }}>{statsDec.perdas.toLocaleString('pt-BR')}</div>
+                </div>
+                <div className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', fontWeight: 700 }}>Efic.</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--info)' }}>{(statsDec.efficiency * 100).toFixed(1)}%</div>
+                </div>
+                <div className="card" style={{ padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', fontWeight: 700 }}>% Perda</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--warning)' }}>{(statsDec.pctPerda * 100).toFixed(1)}%</div>
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* Produção Diária (Seu gráfico existente adaptado para o grid) */}
                 <div className="card" style={{ padding: 20 }}>
                     <div className="card-title" style={{ marginBottom: 16 }}>Canudos Encabeçados por Dia</div>

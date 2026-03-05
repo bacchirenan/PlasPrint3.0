@@ -1,8 +1,28 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import type { FichaTecnica } from '@/lib/types'
 import Plot from '@/components/Plot'
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function isoToBr(iso: string) {
+    if (!iso || iso.length !== 10) return ''
+    const [y, m, d] = iso.split('-')
+    return `${d}/${m}/${y}`
+}
+
+function brToIso(br: string) {
+    const clean = br.replace(/\D/g, '')
+    if (clean.length !== 8) return ''
+    return `${clean.slice(4)}-${clean.slice(2, 4)}-${clean.slice(0, 2)}`
+}
+
+function maskDate(value: string) {
+    const digits = value.replace(/\D/g, '').slice(0, 8)
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
 
 function fmtMoeda(v: number) {
     return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4 })
@@ -20,6 +40,14 @@ export default function FichasPage() {
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'performance' | 'financeiro'>('performance')
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
+
+    // Filtros de Data
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    const [dateFrom, setDateFrom] = useState('2024-01-01') // Range inicial maior para fichas
+    const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
+
+    const dateFromPickerRef = useRef<HTMLInputElement>(null)
+    const dateToPickerRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
         async function load() {
@@ -43,10 +71,20 @@ export default function FichasPage() {
     }, [])
 
     const sortedData = useMemo(() => {
-        let result = fichas.filter(f =>
-            f.referencia.toLowerCase().includes(search.toLowerCase()) ||
-            f.produto.toLowerCase().includes(search.toLowerCase())
-        )
+        let result = fichas.filter(f => {
+            // Filtro de Busca
+            const matchesSearch = f.referencia.toLowerCase().includes(search.toLowerCase()) ||
+                f.produto.toLowerCase().includes(search.toLowerCase())
+            if (!matchesSearch) return false
+
+            // Filtro de Data (data_cadastro)
+            if (f.data_cadastro) {
+                const fDate = f.data_cadastro.includes(' ') ? f.data_cadastro.split(' ')[0] : f.data_cadastro
+                if (fDate < dateFrom || fDate > dateTo) return false
+            }
+
+            return true
+        })
 
         if (sortConfig) {
             result.sort((a, b) => {
@@ -183,9 +221,76 @@ export default function FichasPage() {
 
     return (
         <div className="page-container">
-            <div style={{ marginBottom: 24 }}>
-                <h1 style={{ fontSize: 24, fontWeight: 800 }}>Fichas Técnicas</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Gestão de referências, consumos de tinta e tempos de ciclo</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                    <h1 style={{ fontSize: 24, fontWeight: 800 }}>Fichas Técnicas</h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Gestão de referências, consumos de tinta e tempos de ciclo</p>
+                </div>
+
+                {/* Filtros de Data Identicos aos outros */}
+                <div className="card" style={{ padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-end', background: 'rgba(13, 30, 56, 0.45)' }}>
+                    <div>
+                        <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700 }}>De</label>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                type="text"
+                                value={isoToBr(dateFrom)}
+                                onChange={e => {
+                                    const masked = maskDate(e.target.value)
+                                    if (masked.length === 10) {
+                                        const iso = brToIso(masked)
+                                        if (iso) setDateFrom(iso)
+                                    }
+                                }}
+                                style={{ width: 100, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 13, outline: 'none' }}
+                                placeholder="dd/mm/aaaa"
+                            />
+                            <button
+                                onClick={() => dateFromPickerRef.current?.showPicker()}
+                                style={{ position: 'absolute', right: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, opacity: 0.6 }}
+                            >
+                                📅
+                            </button>
+                            <input
+                                type="date"
+                                ref={dateFromPickerRef}
+                                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', right: 0 }}
+                                onChange={e => setDateFrom(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700 }}>Até</label>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                type="text"
+                                value={isoToBr(dateTo)}
+                                onChange={e => {
+                                    const masked = maskDate(e.target.value)
+                                    if (masked.length === 10) {
+                                        const iso = brToIso(masked)
+                                        if (iso) setDateTo(iso)
+                                    }
+                                }}
+                                style={{ width: 100, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 13, outline: 'none' }}
+                                placeholder="dd/mm/aaaa"
+                            />
+                            <button
+                                onClick={() => dateToPickerRef.current?.showPicker()}
+                                style={{ position: 'absolute', right: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, opacity: 0.6 }}
+                                aria-label="Abrir calendário"
+                            >
+                                📅
+                            </button>
+                            <input
+                                type="date"
+                                ref={dateToPickerRef}
+                                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', right: 0 }}
+                                onChange={e => setDateTo(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div style={{ display: 'flex', gap: 12, marginBottom: 32, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>

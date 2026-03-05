@@ -138,7 +138,8 @@ export function parseProducaoXlsx(buffer: ArrayBuffer): ProducaoRow[] {
 
 /**
  * Parseia o arquivo "oee teep.xlsx".
- * Colunas solicitadas: B=máquina, C=data, D=turno, E=hora, H=disp, I=perf, J=qual
+ * Colunas: B=máquina, C=data, D=turno, E=hora, K=TEEP, L=OEE
+ * Os valores de TEEP (col K) e OEE (col L) são lidos diretamente da planilha.
  */
 export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): OeeRow[] {
     const wb = XLSX.read(buffer, { type: 'array', cellDates: false })
@@ -146,20 +147,15 @@ export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): 
     if (!ws) return []
     const raw: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null })
 
-    const rows = raw.slice(1) // pular 1ª linha
+    const rows = raw.slice(1) // pular 1ª linha (cabeçalho)
     const result: OeeRow[] = []
 
-    // Montar set de paradas previstas a partir do arquivo producao
-    const paradasPrevistas = new Set<string>()
-    const EXCLUDE_CODES = ['0097', '0007', '0083', '0099', '0101', '0102']
-
+    // Mapear paradas previstas do arquivo de produção
+    const paradasSet = new Set<string>()
     for (const p of producaoRows) {
-        const registro = p.registro.toUpperCase()
-        const isExcludedCode = EXCLUDE_CODES.some(code => registro.startsWith(code))
-        const isParadaTexto = registro.includes('PARADA PREVISTA')
-
-        if (isExcludedCode || isParadaTexto) {
-            paradasPrevistas.add(`${p.maquina}|${p.data}|${p.hora}`)
+        if (p.registro.toLowerCase().includes('parada prevista')) {
+            const key = `${p.maquina}|${p.data}|${p.hora}`
+            paradasSet.add(key)
         }
     }
 
@@ -171,48 +167,46 @@ export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): 
         const dateStr = parseDate(row[2])
         if (!dateStr) continue
 
-        const turno = mapShift(row[3])
-        if (!turno) continue
+        const turnoNum = Number(String(row[3] ?? '').trim().split('.')[0])
+        // Pula Turno 3 (noturno) — fábrica calcula OEE apenas em turnos produtivos A e B
+        if (![1, 2].includes(turnoNum)) continue
+
+        const turno = turnoNum === 1 ? 'Turno A' : 'Turno B'
 
         const hora = toNum(row[4])
+        // Restringe ao horário das 06:00 às 21:59
+        if (hora < 6 || hora > 21) continue
 
-        // Coleta índices brutos
-        const disp = toPercent(row[7]) // Col H
-        const perf = toPercent(row[8]) // Col I
-        const qual = toPercent(row[9]) // Col J
-        const teepOrig = toPercent(row[10]) // Col K
-        const oeeOrig = toPercent(row[11]) // Col L
-
-        // Utilização = TEEP / OEE (derivado do Excel)
-        const utilizacao = oeeOrig > 0 ? teepOrig / oeeOrig : 0
-
-        // OEE = Disponibilidade x Performance X Qualidade
-        let oeeCalc = disp * perf * qual
-
-        // TEEP = Utilização x OEE (Fórmula nova)
-        let teepCalc = utilizacao * oeeCalc
-
-        // Regra de Exclusão: Se for Parada Prevista, marcamos como NaN
+        // Verifica se é Parada Prevista
         const key = `${maq}|${dateStr}|${hora}`
-        const isParada = paradasPrevistas.has(key)
+        if (paradasSet.has(key)) continue
+
+        // Lê TEEP e OEE diretamente da planilha
+        const teepRaw = toPercent(row[10]) // Coluna K = TEEP
+        const oeeRaw = toPercent(row[11]) // Coluna L = OEE
+
+        // Usa os valores brutos da planilha (sem cap de 100%)
+        const oee = oeeRaw
+        const teep = teepRaw
 
         result.push({
             maquina: maq,
             data: dateStr,
             turno,
             hora,
-            disponibilidade: disp,
-            performance: perf,
-            qualidade: qual,
-            utilizacao: utilizacao,
-            teep: isParada ? NaN : Math.min(teepCalc, 1.0),
-            oee: isParada ? NaN : Math.min(oeeCalc, 1.05),
-            is_parada_prevista: isParada,
+            disponibilidade: 0,
+            performance: 0,
+            qualidade: 0,
+            utilizacao: 0,
+            teep,
+            oee,
+            is_parada_prevista: false,
         })
     }
 
     return result
 }
+
 
 // ─── Canudos ─────────────────────────────────────────────────────────────────
 
