@@ -251,7 +251,7 @@ export default function OeePage() {
                 />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 550px), 1fr))', gap: 20 }}>
                 {/* OEE por Hora */}
                 <div className="card" style={{ padding: 20 }}>
                     <div className="card-title">Eficiência por Horário</div>

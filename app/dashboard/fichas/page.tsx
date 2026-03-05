@@ -226,7 +226,7 @@ export default function FichasPage() {
                 <div style={{ marginBottom: 40 }}>
                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Análise de Performance e Consumo</h3>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20, marginBottom: 30 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 30 }}>
                         <div className="card" style={{ padding: '20px' }}>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Total de Fichas</div>
                             <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>{performanceMetrics.totalFichas}</div>
@@ -245,7 +245,7 @@ export default function FichasPage() {
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 450px), 1fr))', gap: 24 }}>
                         <div className="card" style={{ padding: '24px' }}>
                             <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Distribuição de Tintas por Cor (%)</h4>
                             <Plot
@@ -312,7 +312,7 @@ export default function FichasPage() {
             {/* --- SEÇÃO FINANCEIRA --- */}
             {activeTab === 'financeiro' && metrics && (
                 <div style={{ marginBottom: 40 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 20 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 20 }}>
                         <div className="card" style={{ padding: '20px' }}>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Custo Médio (por Garrafa)</div>
                             <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary-bright)' }}>{fmtMoeda(metrics.media)}</div>
@@ -356,15 +356,16 @@ export default function FichasPage() {
                             layout={{
                                 autosize: true,
                                 height: 400,
-                                margin: { l: 250, r: 20, t: 10, b: 30 },
+                                margin: { l: 120, r: 20, t: 10, b: 30 },
                                 font: { family: 'var(--font-primary-local), sans-serif' },
                                 paper_bgcolor: 'transparent',
                                 plot_bgcolor: 'transparent',
                                 showlegend: false,
                                 xaxis: { showgrid: false, zeroline: false, showticklabels: false },
                                 yaxis: {
-                                    tickfont: { size: 11, color: '#fff', family: 'var(--font-primary-local), sans-serif' },
-                                    tickpadding: 15
+                                    tickfont: { size: 10, color: '#fff', family: 'var(--font-primary-local), sans-serif' },
+                                    tickpadding: 10,
+                                    automargin: true
                                 }
                             }}
                             config={{ displayModeBar: false, responsive: true }}

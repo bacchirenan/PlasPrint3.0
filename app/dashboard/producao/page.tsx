@@ -339,7 +339,7 @@ export default function ProducaoPage() {
             </div>
 
             {/* KPIs */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                 {[
                     { label: 'Total de Peças', value: fmtN(metrics.total), color: 'var(--primary-bright)' },
                     { label: 'Peças Boas', value: fmtN(metrics.boas), color: 'var(--success)' },
@@ -438,7 +438,7 @@ export default function ProducaoPage() {
             </div>
 
             {/* Horária + Turnos */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div className="card" style={{ padding: 20 }}>
                     <div className="card-title" style={{ marginBottom: 16 }}>Evolução Horária</div>
                     <Plot
@@ -487,7 +487,7 @@ export default function ProducaoPage() {
             </div>
 
             {/* Operadores e Top Produtos Lado a Lado */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* Operadores */}
                 <div className="card" style={{ padding: 20 }}>
                     <div className="card-title" style={{ marginBottom: 16 }}>Peças Produzidas por Operador</div>
@@ -505,7 +505,7 @@ export default function ProducaoPage() {
                                 tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 8.5 },
                                 automargin: true
                             },
-                            margin: { t: 20, b: 20, l: 200, r: 20 }
+                            margin: { t: 20, b: 20, l: 100, r: 20 }
                         }}
                         config={{ displayModeBar: false, responsive: true }}
                         style={{ width: '100%' }}
@@ -529,7 +529,7 @@ export default function ProducaoPage() {
                                 tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 8.5 },
                                 automargin: true
                             },
-                            margin: { t: 20, b: 20, l: 300, r: 20 }
+                            margin: { t: 20, b: 20, l: 120, r: 20 }
                         }}
                         config={{ displayModeBar: false, responsive: true }}
                         style={{ width: '100%' }}
@@ -574,7 +574,7 @@ export default function ProducaoPage() {
                                 tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 9 },
                                 automargin: true
                             },
-                            margin: { t: 20, b: 20, l: 200, r: 20 }
+                            margin: { t: 20, b: 20, l: 120, r: 20 }
                         }}
                         config={{ displayModeBar: false, responsive: true }}
                         style={{ width: '100%' }}

@@ -112,6 +112,34 @@ export default function CanudosPage() {
         }
     }, [filtered.encabecados])
 
+    // ─ Gráficos Decorados
+    const chartByDayDec = useMemo(() => {
+        const acc: Record<string, { boas: number, perdas: number }> = {}
+        for (const r of filtered.decorados) {
+            if (!acc[r.data]) acc[r.data] = { boas: 0, perdas: 0 }
+            acc[r.data].boas += r.pecas_boas
+            acc[r.data].perdas += r.perdas
+        }
+        const dates = Object.keys(acc).sort()
+        const labels = dates.map(d => { const [, m, day] = d.split('-'); return `${day}/${m}` })
+        return { x: labels, boas: dates.map(d => acc[d].boas), perdas: dates.map(d => acc[d].perdas) }
+    }, [filtered.decorados])
+
+    const chartAverageByShiftDec = useMemo(() => {
+        const sums = { 'Turno A': 0, 'Turno B': 0 }
+        filtered.decorados.forEach(r => {
+            if (r.turno === 'Turno A') sums['Turno A'] += r.pecas_boas
+            else sums['Turno B'] += r.pecas_boas
+        })
+        const avgA = sums['Turno A'] / 8
+        const avgB = sums['Turno B'] / 8
+        return {
+            x: ['Turno A', 'Turno B'],
+            y: [avgA, avgB],
+            globalAverage: (avgA + avgB) / 2
+        }
+    }, [filtered.decorados])
+
     if (loading) return <div className="spinner-container"><div className="spinner" /></div>
 
     return (
@@ -190,7 +218,7 @@ export default function CanudosPage() {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
                 <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Total de Canudos Encabeçados</div>
                     <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--success)' }}>{statsEnc.boas.toLocaleString('pt-BR')}</div>
@@ -209,7 +237,7 @@ export default function CanudosPage() {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
                 <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Total de Canudos Decorados</div>
                     <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--success)' }}>{statsDec.boas.toLocaleString('pt-BR')}</div>
@@ -228,7 +256,7 @@ export default function CanudosPage() {
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 500px), 1fr))', gap: 20 }}>
                 {/* Produção Diária (Seu gráfico existente adaptado para o grid) */}
                 <div className="card" style={{ padding: 20 }}>
                     <div className="card-title" style={{ marginBottom: 16 }}>Canudos Encabeçados por Dia</div>
@@ -310,6 +338,101 @@ export default function CanudosPage() {
                                     xanchor: 'right',
                                     yanchor: 'bottom',
                                     text: `Média Global: ${Math.round(chartAverageByShift.globalAverage).toLocaleString('pt-BR')}`,
+                                    font: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 11 },
+                                    showarrow: false,
+                                    yshift: 5
+                                }
+                            ]
+                        }}
+                        config={{ displayModeBar: false, responsive: true }}
+                        style={{ width: '100%' }}
+                    />
+                </div>
+            </div>
+
+            {/* Gráficos Decorados */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Decorados por Dia */}
+                <div className="card" style={{ padding: 20 }}>
+                    <div className="card-title" style={{ marginBottom: 16 }}>Canudos Decorados por Dia</div>
+                    <Plot
+                        data={[
+                            {
+                                type: 'bar',
+                                name: 'Peças Boas',
+                                x: chartByDayDec.x,
+                                y: chartByDayDec.boas,
+                                text: chartByDayDec.boas.map(v => v > 0 ? v.toLocaleString('pt-BR') : ''),
+                                textposition: 'outside',
+                                textangle: -90,
+                                textfont: { family: 'var(--font-primary-local), sans-serif', size: 11, color: '#fff' },
+                                marker: { color: '#09a38c' },
+                                cliponaxis: false
+                            },
+                        ]}
+                        layout={{
+                            paper_bgcolor: 'transparent',
+                            plot_bgcolor: 'transparent',
+                            height: 380,
+                            font: { family: 'var(--font-primary-local), sans-serif', color: '#93b8f0' },
+                            margin: { t: 60, b: 60, l: 40, r: 20 },
+                            xaxis: { tickfont: { family: 'var(--font-primary-local), sans-serif', size: 11, color: '#fff' } },
+                            yaxis: { visible: false, range: [0, Math.max(...chartByDayDec.boas, 10) * 1.3] }
+                        }}
+                        config={{ displayModeBar: false, responsive: true }}
+                        style={{ width: '100%' }}
+                    />
+                </div>
+
+                {/* Decorados por Hora/Turno */}
+                <div className="card" style={{ padding: 20 }}>
+                    <div className="card-title" style={{ marginBottom: 16 }}>Canudos Decorados por Hora</div>
+                    <Plot
+                        data={[
+                            {
+                                type: 'bar',
+                                x: chartAverageByShiftDec.x,
+                                y: chartAverageByShiftDec.y,
+                                text: chartAverageByShiftDec.y.map(v => Math.round(v).toLocaleString('pt-BR')),
+                                textposition: 'outside',
+                                marker: { color: ['#00adef', '#1a335f'] },
+                                textfont: { family: 'var(--font-primary-local), sans-serif', size: 13, color: '#fff' },
+                                cliponaxis: false
+                            }
+                        ]}
+                        layout={{
+                            paper_bgcolor: 'transparent',
+                            plot_bgcolor: 'transparent',
+                            height: 380,
+                            font: { family: 'var(--font-primary-local), sans-serif', color: '#93b8f0' },
+                            margin: { t: 40, b: 40, l: 40, r: 20 },
+                            xaxis: {
+                                tickfont: { family: 'var(--font-primary-local), sans-serif', size: 12, color: '#fff' }
+                            },
+                            yaxis: {
+                                visible: false,
+                                range: [0, Math.max(...chartAverageByShiftDec.y, 10) * 1.3]
+                            },
+                            shapes: [
+                                {
+                                    type: 'line',
+                                    x0: 0,
+                                    x1: 1,
+                                    xref: 'paper',
+                                    y0: chartAverageByShiftDec.globalAverage,
+                                    y1: chartAverageByShiftDec.globalAverage,
+                                    line: { color: 'rgba(255,255,255,0.4)', dash: 'dash', width: 2 }
+                                }
+                            ],
+                            annotations: [
+                                {
+                                    xref: 'paper',
+                                    yref: 'y',
+                                    x: 1,
+                                    y: chartAverageByShiftDec.globalAverage,
+                                    xanchor: 'right',
+                                    yanchor: 'bottom',
+                                    text: `Média Global: ${Math.round(chartAverageByShiftDec.globalAverage).toLocaleString('pt-BR')}`,
                                     font: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 11 },
                                     showarrow: false,
                                     yshift: 5
