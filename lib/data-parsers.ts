@@ -153,7 +153,7 @@ export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): 
     // Mapear paradas previstas do arquivo de produção
     const paradasSet = new Set<string>()
     for (const p of producaoRows) {
-        if (p.registro.toLowerCase().includes('parada prevista')) {
+        if (p.registro.toLowerCase().includes('parada prevista') || p.registro.toLowerCase().includes('paradda prevista')) {
             const key = `${p.maquina}|${p.data}|${p.hora}`
             paradasSet.add(key)
         }
@@ -167,27 +167,47 @@ export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): 
         const dateStr = parseDate(row[2])
         if (!dateStr) continue
 
-        const turnoNum = Number(String(row[3] ?? '').trim().split('.')[0])
-        // Pula Turno 3 (noturno) — fábrica calcula OEE apenas em turnos produtivos A e B
-        if (![1, 2].includes(turnoNum)) continue
+        const turnoRaw = String(row[3] ?? '').trim()
+        const hrRaw = row[4]
 
-        const turno = turnoNum === 1 ? 'Turno A' : 'Turno B'
+        // Regra absoluta do Excel: Se a coluna Hora estiver *literalmente vazia* (isso é sujeira de fechamento de tabela dinâmica),
+        // nós dropamos a linha inteira (isso não é hora zero de produtividade, é só uma linha fantasma do excel).
+        if (hrRaw === null || hrRaw === undefined || String(hrRaw).trim() === '') continue
 
-        const hora = toNum(row[4])
-        // Restringe ao horário das 06:00 às 21:59
-        if (hora < 6 || hora > 21) continue
+        const hora = toNum(hrRaw)
 
-        // Verifica se é Parada Prevista
         const key = `${maq}|${dateStr}|${hora}`
-        if (paradasSet.has(key)) continue
+        const isParada = paradasSet.has(key)
 
-        // Lê TEEP e OEE diretamente da planilha
-        const teepRaw = toPercent(row[10]) // Coluna K = TEEP
-        const oeeRaw = toPercent(row[11]) // Coluna L = OEE
+        let isValidOee = true
 
-        // Usa os valores brutos da planilha (sem cap de 100%)
-        const oee = oeeRaw
-        const teep = teepRaw
+        // OEE RULE: Rejeitar Turno 3, Turnos Vazios
+        if (!turnoRaw || turnoRaw.toLowerCase().includes('turno') || turnoRaw === '3' || turnoRaw.startsWith('3')) {
+            isValidOee = false
+        }
+
+        // OEE RULE: Rejeitar horas de madrugada (0,1,2,3,4,5,23)
+        if ([0, 1, 2, 3, 4, 5, 23].includes(hora)) {
+            isValidOee = false
+        }
+
+        // OEE RULE & TEEP RULE: Rejeitar a Parada Prevista do tempo efetivo do Denominador
+        // NOTA: Se TEEP refletir o tempo TODO da máquina (24h) mas OEE refletir apenas o Tempo Planejado:
+        // Na "Opção B", TEEP NÃO É penalizado por descartar Paradas. Para manter a coerência de 26% exatos da fábrica,
+        // (a fábrica NÃO retirou a parada prevista do denominador do TEEP, ela apenas puxa a linha!)
+        // Na verdade, as paradas não deveriam contar OEE *produtivo*.
+        if (isParada) {
+            isValidOee = false
+        }
+
+        // Definindo turno sintético (apenas para OEE)
+        let turno = 'Turno A'
+        if (hora >= 6 && hora <= 13) turno = 'Turno A'
+        else if (hora >= 14 && hora <= 22) turno = 'Turno B'
+        else turno = turnoRaw || 'Madrugada'
+
+        const teepRaw = toPercent(row[10])
+        const oeeRaw = toPercent(row[11])
 
         result.push({
             maquina: maq,
@@ -198,9 +218,10 @@ export function parseOeeXlsx(buffer: ArrayBuffer, producaoRows: ProducaoRow[]): 
             performance: 0,
             qualidade: 0,
             utilizacao: 0,
-            teep,
-            oee,
-            is_parada_prevista: false,
+            teep: teepRaw,
+            oee: oeeRaw,
+            is_parada_prevista: isParada,
+            is_valid_oee: isValidOee
         })
     }
 

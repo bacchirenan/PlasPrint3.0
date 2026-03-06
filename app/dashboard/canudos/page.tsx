@@ -97,16 +97,30 @@ export default function CanudosPage() {
 
     const chartAverageByShift = useMemo(() => {
         const sums = { 'Turno A': 0, 'Turno B': 0 }
+        const days = { 'Turno A': new Set<string>(), 'Turno B': new Set<string>() }
+
         filtered.encabecados.forEach(r => {
-            if (r.turno === 'Turno A') sums['Turno A'] += r.pecas_boas
-            else sums['Turno B'] += r.pecas_boas
+            if (r.turno === 'Turno A') {
+                sums['Turno A'] += r.pecas_boas
+                days['Turno A'].add(r.data)
+            } else {
+                sums['Turno B'] += r.pecas_boas
+                days['Turno B'].add(r.data)
+            }
         })
-        const avgA = sums['Turno A'] / 8
-        const avgB = sums['Turno B'] / 8
+
+        const hoursA = days['Turno A'].size > 0 ? days['Turno A'].size * 8 : 8
+        const hoursB = days['Turno B'].size > 0 ? days['Turno B'].size * 8 : 8
+        const avgA = sums['Turno A'] / hoursA
+        const avgB = sums['Turno B'] / hoursB
+
+        const totalSum = sums['Turno A'] + sums['Turno B']
+        const totalHours = (days['Turno A'].size * 8) + (days['Turno B'].size * 8) || 16
+
         return {
             x: ['Turno A', 'Turno B'],
             y: [avgA, avgB],
-            globalAverage: (avgA + avgB) / 2
+            globalAverage: totalSum / totalHours
         }
     }, [filtered.encabecados])
 
@@ -125,16 +139,29 @@ export default function CanudosPage() {
 
     const chartAverageByShiftDec = useMemo(() => {
         const sums = { 'Turno A': 0, 'Turno B': 0 }
+        const days = { 'Turno A': new Set<string>(), 'Turno B': new Set<string>() }
         filtered.decorados.forEach(r => {
-            if (r.turno === 'Turno A') sums['Turno A'] += r.pecas_boas
-            else sums['Turno B'] += r.pecas_boas
+            if (r.turno === 'Turno A') {
+                sums['Turno A'] += r.pecas_boas
+                days['Turno A'].add(r.data)
+            } else {
+                sums['Turno B'] += r.pecas_boas
+                days['Turno B'].add(r.data)
+            }
         })
-        const avgA = sums['Turno A'] / 8
-        const avgB = sums['Turno B'] / 8
+
+        const hoursA = days['Turno A'].size > 0 ? days['Turno A'].size * 8 : 8
+        const hoursB = days['Turno B'].size > 0 ? days['Turno B'].size * 8 : 8
+        const avgA = sums['Turno A'] / hoursA
+        const avgB = sums['Turno B'] / hoursB
+
+        const totalSum = sums['Turno A'] + sums['Turno B']
+        const totalHours = (days['Turno A'].size * 8) + (days['Turno B'].size * 8) || 16
+
         return {
             x: ['Turno A', 'Turno B'],
             y: [avgA, avgB],
-            globalAverage: (avgA + avgB) / 2
+            globalAverage: totalSum / totalHours
         }
     }, [filtered.decorados])
 

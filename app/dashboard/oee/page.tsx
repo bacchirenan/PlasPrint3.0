@@ -94,7 +94,8 @@ export default function OeePage() {
     // ─ Métricas Gerais
     const metrics = useMemo(() => {
         if (!filtered.length) return { oee: 0, teep: 0 }
-        const oee = filtered.reduce((a, r) => a + r.oee, 0) / filtered.length
+        const validOeeRows = filtered.filter(r => r.is_valid_oee !== false)
+        const oee = validOeeRows.length > 0 ? validOeeRows.reduce((a, r) => a + r.oee, 0) / validOeeRows.length : 0
         const teep = filtered.reduce((a, r) => a + r.teep, 0) / filtered.length
         return { oee, teep }
     }, [filtered])
@@ -140,51 +141,60 @@ export default function OeePage() {
 
     // ─ Gráfico Evolução Temporal
     const chartTimeline = useMemo(() => {
-        const daily: Record<string, { oeeSum: number, n: number, teepSum: number }> = {}
+        const daily: Record<string, { oeeSum: number, oeeN: number, teepSum: number, teepN: number }> = {}
         for (const r of filtered) {
-            if (!daily[r.data]) daily[r.data] = { oeeSum: 0, n: 0, teepSum: 0 }
-            daily[r.data].oeeSum += r.oee
+            if (!daily[r.data]) daily[r.data] = { oeeSum: 0, oeeN: 0, teepSum: 0, teepN: 0 }
+            if (r.is_valid_oee !== false) {
+                daily[r.data].oeeSum += r.oee
+                daily[r.data].oeeN++
+            }
             daily[r.data].teepSum += r.teep
-            daily[r.data].n++
+            daily[r.data].teepN++
         }
         const dates = Object.keys(daily).sort()
         const labels = dates.map(d => { const [, m, day] = d.split('-'); return `${day}/${m}` })
         return {
             x: labels,
-            oee: dates.map(d => daily[d].oeeSum / daily[d].n),
-            teep: dates.map(d => daily[d].teepSum / daily[d].n),
+            oee: dates.map(d => daily[d].oeeN > 0 ? daily[d].oeeSum / daily[d].oeeN : 0),
+            teep: dates.map(d => daily[d].teepN > 0 ? daily[d].teepSum / daily[d].teepN : 0),
         }
     }, [filtered])
 
     const chartHourly = useMemo(() => {
-        const hourly: Record<number, { oeeSum: number, n: number, teepSum: number }> = {}
+        const hourly: Record<number, { oeeSum: number, oeeN: number, teepSum: number, teepN: number }> = {}
         for (const r of filtered) {
-            if (!hourly[r.hora]) hourly[r.hora] = { oeeSum: 0, n: 0, teepSum: 0 }
-            hourly[r.hora].oeeSum += r.oee
+            if (!hourly[r.hora]) hourly[r.hora] = { oeeSum: 0, oeeN: 0, teepSum: 0, teepN: 0 }
+            if (r.is_valid_oee !== false) {
+                hourly[r.hora].oeeSum += r.oee
+                hourly[r.hora].oeeN++
+            }
             hourly[r.hora].teepSum += r.teep
-            hourly[r.hora].n++
+            hourly[r.hora].teepN++
         }
         const hours = Object.keys(hourly).map(Number).sort((a, b) => a - b)
         return {
             x: hours.map(h => `${h}h`),
-            oee: hours.map(h => hourly[h].oeeSum / hourly[h].n),
-            teep: hours.map(h => hourly[h].teepSum / hourly[h].n),
+            oee: hours.map(h => hourly[h].oeeN > 0 ? hourly[h].oeeSum / hourly[h].oeeN : 0),
+            teep: hours.map(h => hourly[h].teepN > 0 ? hourly[h].teepSum / hourly[h].teepN : 0),
         }
     }, [filtered])
 
     const chartByMaq = useMemo(() => {
-        const maq: Record<string, { oeeSum: number, n: number, teepSum: number }> = {}
+        const maq: Record<string, { oeeSum: number, oeeN: number, teepSum: number, teepN: number }> = {}
         for (const r of filtered) {
-            if (!maq[r.maquina]) maq[r.maquina] = { oeeSum: 0, n: 0, teepSum: 0 }
-            maq[r.maquina].oeeSum += r.oee
+            if (!maq[r.maquina]) maq[r.maquina] = { oeeSum: 0, oeeN: 0, teepSum: 0, teepN: 0 }
+            if (r.is_valid_oee !== false) {
+                maq[r.maquina].oeeSum += r.oee
+                maq[r.maquina].oeeN++
+            }
             maq[r.maquina].teepSum += r.teep
-            maq[r.maquina].n++
+            maq[r.maquina].teepN++
         }
         const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
         return {
             x: sortedFullNames,
-            oee: sortedFullNames.map(name => maq[name] ? maq[name].oeeSum / maq[name].n : 0),
-            teep: sortedFullNames.map(name => maq[name] ? maq[name].teepSum / maq[name].n : 0)
+            oee: sortedFullNames.map(name => (maq[name] && maq[name].oeeN > 0) ? maq[name].oeeSum / maq[name].oeeN : 0),
+            teep: sortedFullNames.map(name => (maq[name] && maq[name].teepN > 0) ? maq[name].teepSum / maq[name].teepN : 0)
         }
     }, [filtered])
 
@@ -193,6 +203,7 @@ export default function OeePage() {
         const acc: Record<number, Record<string, number>> = {}
         const dates = new Set<string>()
         for (const r of filtered) {
+            if (r.is_valid_oee === false) continue
             if (!acc[r.hora]) acc[r.hora] = {}
             if (r.oee > 0) {
                 acc[r.hora][r.data] = r.oee

@@ -62,7 +62,7 @@ export default function ConfiguracoesPage() {
     if (loading) return <div className="spinner-container"><div className="spinner" /></div>
 
     return (
-        <div className="page-container" style={{ maxWidth: 800 }}>
+        <div className="page-container" style={{ maxWidth: 800, margin: '0 auto' }}>
             <div style={{ marginBottom: 32 }}>
                 <h1 style={{ fontSize: 24, fontWeight: 800 }}>Configurações do Sistema</h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Gerencie preços de insumos, taxas e parâmetros de cálculo</p>

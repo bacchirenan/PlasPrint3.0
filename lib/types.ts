@@ -40,6 +40,7 @@ export interface OeeRow {
   teep: number
   oee: number
   is_parada_prevista?: boolean
+  is_valid_oee?: boolean
 }
 
 export interface FichaTecnica {
