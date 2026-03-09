@@ -47,7 +47,7 @@ export default function RelatoriosPage() {
     const [reportData, setReportData] = useState<any>(null)
 
     const calculateReportData = (oeeData: any[], prodData: any[], canudosData: any, fichas: any[]) => {
-        const maqs = selMaqs.map(m => (m === '180' || m === '181' || m === '182') ? `${m}- CX-360G` : `${m}-CX-360G`)
+        const maqs = selMaqs.flatMap(m => [`${m}-CX-360G`, `${m}- CX-360G`]);
 
         const filtrar = (rows: any[]) => rows.filter(r => {
             if (r.data < dateFrom || r.data > dateTo) return false
