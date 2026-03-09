@@ -54,6 +54,7 @@ export async function fetchXlsxFromGitHub(filePath: string): Promise<ArrayBuffer
 
     const res = await fetch(url, {
         headers,
+        cache: 'no-store',
         next: { revalidate: 0 },
     })
 

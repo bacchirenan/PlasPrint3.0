@@ -44,4 +44,5 @@ next-env.d.ts
 middleware.ts
 lib/supabase/middleware.ts
 
+/tmp
 .vercel

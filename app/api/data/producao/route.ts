@@ -32,7 +32,16 @@ export async function GET() {
         }
 
         const rows = parseProducaoXlsx(buffer)
-        return NextResponse.json({ data: rows, count: rows.length })
+        return NextResponse.json({
+            data: rows,
+            count: rows.length,
+            debug: {
+                repo: process.env.GITHUB_REPO || 'bacchirenan/PlasPrint3.0',
+                branch: process.env.GITHUB_BRANCH || 'main',
+                isDev,
+                hasUser: !!user
+            }
+        })
     } catch (err) {
         console.error('[API /data/producao]', err)
         return NextResponse.json(
