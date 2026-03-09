@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 // Usa Service Role Key para ignorar RLS — NUNCA expor no client-side
 function getAdminClient() {
-    return createClient(
+    return createAdminClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
@@ -13,13 +14,32 @@ function getAdminClient() {
 
 export async function POST(req: NextRequest) {
     try {
-        const { inkCosts, importTax, dolar } = await req.json()
-        const supabase = getAdminClient()
+        // 1. Verificar autenticação
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
 
-        // Salva preços de tinta
+        if (!user) {
+            return NextResponse.json({ ok: false, error: 'Acesso não autorizado' }, { status: 401 })
+        }
+
+        // 2. Verificar se o usuário é administrador
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+
+        if (!profile || profile.role !== 'admin') {
+            return NextResponse.json({ ok: false, error: 'Permissão insuficiente' }, { status: 403 })
+        }
+
+        const { inkCosts, importTax, dolar } = await req.json()
+        const adminSupabase = getAdminClient()
+
+        // Restante do código de salvamento
         const cores = Object.keys(inkCosts)
         for (const cor of cores) {
-            const { error } = await supabase.from('ink_costs').upsert(
+            const { error } = await adminSupabase.from('ink_costs').upsert(
                 {
                     cor,
                     preco_litro_usd: inkCosts[cor] || 0,
@@ -31,7 +51,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Salva imposto de importação
-        const { data: existing, error: errSel } = await supabase
+        const { data: existing, error: errSel } = await adminSupabase
             .from('app_config')
             .select('chave')
             .eq('chave', 'import_tax')
@@ -40,13 +60,13 @@ export async function POST(req: NextRequest) {
         if (errSel) throw new Error(`Busca config: ${errSel.message}`)
 
         if (existing) {
-            const { error } = await supabase
+            const { error } = await adminSupabase
                 .from('app_config')
                 .update({ valor: importTax })
                 .eq('chave', 'import_tax')
             if (error) throw new Error(`Update imposto: ${error.message}`)
         } else {
-            const { error } = await supabase
+            const { error } = await adminSupabase
                 .from('app_config')
                 .insert({ chave: 'import_tax', valor: importTax })
             if (error) throw new Error(`Insert imposto: ${error.message}`)

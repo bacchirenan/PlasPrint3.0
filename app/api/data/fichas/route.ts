@@ -13,8 +13,9 @@ export async function GET() {
 
         let dbBuffer: Buffer
         const localPath = path.join(cwd, 'fichas_tecnicas.db')
+        const isDev = process.env.NODE_ENV === 'development'
 
-        if (fs.existsSync(localPath)) {
+        if (isDev && fs.existsSync(localPath)) {
             dbBuffer = fs.readFileSync(localPath)
         } else {
             dbBuffer = await fetchSqliteFromGitHub('fichas_tecnicas.db')
@@ -28,6 +29,12 @@ export async function GET() {
 
         // Dados do Supabase para custos
         const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+            return NextResponse.json({ error: 'Não autorizado', fichas: [], produtos: [] }, { status: 401 })
+        }
+
         const { data: inkCosts } = await supabase.from('ink_costs').select('*')
         const { data: configTax } = await supabase.from('app_config').select('*').eq('chave', 'import_tax').single()
 

@@ -5,7 +5,7 @@
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || ''
-const GITHUB_REPO = process.env.GITHUB_REPO || 'bacchirenan/PlasPrint2.0'
+const GITHUB_REPO = process.env.GITHUB_REPO || 'bacchirenan/PlasPrint3.0'
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main'
 
 /**
@@ -71,7 +71,7 @@ export async function fetchXlsxFromGitHub(filePath: string): Promise<ArrayBuffer
  * Como o .db pode ser grande, usamos cache de 10 minutos.
  */
 export async function fetchSqliteFromGitHub(filePath: string): Promise<Buffer> {
-    const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${encodeURIComponent(filePath)}`
+    const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${encodeURIComponent(filePath)}?v=${Date.now()}`
 
     const headers: HeadersInit = {}
     if (GITHUB_TOKEN) {
