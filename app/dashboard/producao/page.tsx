@@ -104,7 +104,6 @@ export default function ProducaoPage() {
             if (r.data < dateFrom || r.data > dateTo) return false
             return true
         })
-        console.log(`[Dashboard Producao] Total: ${rows.length}, Filtrado: ${result.length}, Maquinas: ${selNorms}`)
         return result
     }, [rows, selMaqs, dateFrom, dateTo])
 
