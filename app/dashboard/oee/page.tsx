@@ -7,9 +7,13 @@ import Plot from '@/components/Plot'
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const MAQ_MAP: Record<string, string> = {
     '28': '28-CX-360G', '29': '29-CX-360G',
-    '180': '180- CX-360G', '181': '181- CX-360G', '182': '182- CX-360G',
+    '180': '180-CX-360G', '181': '181-CX-360G', '182': '182-CX-360G',
 }
 const MAQ_ORDER = ['28', '29', '180', '181', '182']
+
+function normMaq(m: string) {
+    return (m || '').replace(/\s+/g, '').toUpperCase()
+}
 
 // Converte yyyy-mm-dd → dd/mm/aaaa (exibição)
 function isoToBr(iso: string) {
@@ -83,9 +87,9 @@ export default function OeePage() {
     useEffect(() => { load() }, [load])
 
     const filtered = useMemo(() => {
-        const selOriginals = selMaqs.map(k => MAQ_MAP[k]).filter(Boolean)
+        const selNorms = selMaqs.map(k => normMaq(MAQ_MAP[k])).filter(Boolean)
         return rows.filter(r => {
-            if (!selOriginals.some(m => r.maquina === m)) return false
+            if (!selNorms.includes(normMaq(r.maquina))) return false
             if (r.data < dateFrom || r.data > dateTo) return false
             return true
         })
@@ -100,11 +104,10 @@ export default function OeePage() {
         return { oee, teep }
     }, [filtered])
 
-    // ─ Gráfico Horas Produzidas por Máquina (Média Diária)
     const chartProducedHours = useMemo(() => {
-        const selOriginals = selMaqs.map(k => MAQ_MAP[k]).filter(Boolean)
+        const selNorms = selMaqs.map(k => normMaq(MAQ_MAP[k])).filter(Boolean)
         const filtProd = producaoRows.filter(r => {
-            if (!selOriginals.includes(r.maquina)) return false
+            if (!selNorms.includes(normMaq(r.maquina))) return false
             if (r.data < dateFrom || r.data > dateTo) return false
             return true
         })
@@ -114,8 +117,9 @@ export default function OeePage() {
 
         for (const r of filtProd) {
             if (r.registro.toLowerCase().includes('produção')) {
+                const mNorm = normMaq(r.maquina)
                 if (!acc[r.data]) acc[r.data] = {}
-                acc[r.data][r.maquina] = (acc[r.data][r.maquina] || 0) + r.tempo_segundos
+                acc[r.data][mNorm] = (acc[r.data][mNorm] || 0) + r.tempo_segundos
                 dates.add(r.data)
             }
         }
@@ -128,11 +132,14 @@ export default function OeePage() {
             }
         }
 
-        const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
-        const yValues = sortedFullNames.map(name => (totals[name] || 0) / (3600 * nDays))
+        const activeMaqs = MAQ_ORDER.filter(k => selMaqs.includes(k))
+        const yValues = activeMaqs.map(k => {
+            const name = normMaq(MAQ_MAP[k])
+            return (totals[name] || 0) / (3600 * nDays)
+        })
 
         return {
-            x: sortedFullNames,
+            x: activeMaqs.map(cleanMaqKey),
             y: yValues,
             text: yValues.map(v => v.toFixed(1)),
             avg: yValues.length ? yValues.reduce((a, b) => a + b, 0) / yValues.length : 0
@@ -182,21 +189,28 @@ export default function OeePage() {
     const chartByMaq = useMemo(() => {
         const maq: Record<string, { oeeSum: number, oeeN: number, teepSum: number, teepN: number }> = {}
         for (const r of filtered) {
-            if (!maq[r.maquina]) maq[r.maquina] = { oeeSum: 0, oeeN: 0, teepSum: 0, teepN: 0 }
+            const mNorm = normMaq(r.maquina)
+            if (!maq[mNorm]) maq[mNorm] = { oeeSum: 0, oeeN: 0, teepSum: 0, teepN: 0 }
             if (r.is_valid_oee !== false) {
-                maq[r.maquina].oeeSum += r.oee
-                maq[r.maquina].oeeN++
+                maq[mNorm].oeeSum += r.oee
+                maq[mNorm].oeeN++
             }
-            maq[r.maquina].teepSum += r.teep
-            maq[r.maquina].teepN++
+            maq[mNorm].teepSum += r.teep
+            maq[mNorm].teepN++
         }
-        const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
+        const activeMaqs = MAQ_ORDER.filter(k => selMaqs.includes(k))
         return {
-            x: sortedFullNames,
-            oee: sortedFullNames.map(name => (maq[name] && maq[name].oeeN > 0) ? maq[name].oeeSum / maq[name].oeeN : 0),
-            teep: sortedFullNames.map(name => (maq[name] && maq[name].teepN > 0) ? maq[name].teepSum / maq[name].teepN : 0)
+            x: activeMaqs.map(cleanMaqKey),
+            oee: activeMaqs.map(k => {
+                const name = normMaq(MAQ_MAP[k])
+                return (maq[name] && maq[name].oeeN > 0) ? maq[name].oeeSum / maq[name].oeeN : 0
+            }),
+            teep: activeMaqs.map(k => {
+                const name = normMaq(MAQ_MAP[k])
+                return (maq[name] && maq[name].teepN > 0) ? maq[name].teepSum / maq[name].teepN : 0
+            })
         }
-    }, [filtered])
+    }, [filtered, selMaqs])
 
     // ─ Heatmap de OEE
     const chartHeatmap = useMemo(() => {
@@ -241,7 +255,7 @@ export default function OeePage() {
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
                 <div>
-                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Indicadores de Eficiência</h1>
+                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Indicadores de Eficiência <span style={{ opacity: 0.3, fontSize: 12 }}>(v2.0.1)</span></h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Análise detalhada de OEE e TEEP por máquina, turno e horário</p>
                 </div>
                 <button className="btn btn-secondary" onClick={load} style={{ height: 40, width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↻</button>

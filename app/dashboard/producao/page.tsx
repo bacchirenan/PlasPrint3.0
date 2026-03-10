@@ -176,8 +176,8 @@ export default function ProducaoPage() {
             }
         }
 
-        const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
-        const yValues = selMaqs.map(k => {
+        const activeMaqs = MAQ_ORDER.filter(k => selMaqs.includes(k))
+        const yValues = activeMaqs.map(k => {
             const name = normMaq(MAQ_MAP[k])
             let total = 0
             for (const mName in totals) {
@@ -187,7 +187,7 @@ export default function ProducaoPage() {
         })
 
         return {
-            x: sortedFullNames.map(cleanMaqKey),
+            x: activeMaqs.map(cleanMaqKey),
             y: yValues,
             text: yValues.map(v => v.toFixed(1)),
             avg: yValues.length ? yValues.reduce((a, b) => a + b, 0) / yValues.length : 0
