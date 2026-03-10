@@ -29,7 +29,12 @@ function maskDate(value: string) {
 }
 const MAQ_MAP: Record<string, string> = {
     '28': '28-CX-360G', '29': '29-CX-360G',
-    '180': '180- CX-360G', '181': '181- CX-360G', '182': '182- CX-360G',
+    '180': '180-CX-360G', '181': '181-CX-360G', '182': '182-CX-360G',
+}
+
+// Helper para normalizar nomes de máquinas (remove espaços e poe em upper)
+function normMaq(m: string) {
+    return (m || '').replace(/\s+/g, '').toUpperCase()
 }
 const MAQ_ORDER = ['28', '29', '180', '181', '182']
 
@@ -93,12 +98,14 @@ export default function ProducaoPage() {
     useEffect(() => { load() }, [load])
 
     const filtered = useMemo(() => {
-        const selOriginals = selMaqs.map(k => MAQ_MAP[k]).filter(Boolean)
-        return rows.filter(r => {
-            if (!selOriginals.some(m => r.maquina === m)) return false
+        const selNorms = selMaqs.map(k => normMaq(MAQ_MAP[k])).filter(Boolean)
+        const result = rows.filter(r => {
+            if (!selNorms.includes(normMaq(r.maquina))) return false
             if (r.data < dateFrom || r.data > dateTo) return false
             return true
         })
+        console.log(`[Dashboard Producao] Total: ${rows.length}, Filtrado: ${result.length}, Maquinas: ${selNorms}`)
+        return result
     }, [rows, selMaqs, dateFrom, dateTo])
 
     const metrics = useMemo(() => {
@@ -171,7 +178,14 @@ export default function ProducaoPage() {
         }
 
         const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
-        const yValues = sortedFullNames.map(name => (totals[name] || 0) / (3600 * nDays))
+        const yValues = selMaqs.map(k => {
+            const name = normMaq(MAQ_MAP[k])
+            let total = 0
+            for (const mName in totals) {
+                if (normMaq(mName) === name) total += totals[mName]
+            }
+            return total / (3600 * nDays)
+        })
 
         return {
             x: sortedFullNames.map(cleanMaqKey),
@@ -287,7 +301,7 @@ export default function ProducaoPage() {
         <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Título */}
             <div>
-                <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Controle de Produção</h1>
+                <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Controle de Produção <span style={{ opacity: 0.3, fontSize: 12 }}>(v2.0.1)</span></h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{filtered.length} registros no período selecionado</p>
             </div>
 

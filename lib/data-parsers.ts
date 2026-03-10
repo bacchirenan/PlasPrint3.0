@@ -93,12 +93,14 @@ export function parseProducaoXlsx(buffer: ArrayBuffer): ProducaoRow[] {
 
     // Pular as primeiras 3 linhas (cabeçalhos originais)
     const rows = raw.slice(3)
+    console.log(`[Parser] Total de linhas brutas: ${raw.length}, Linhas de dados: ${rows.length}`)
     const result: ProducaoRow[] = []
 
     for (const row of rows) {
         if (!row || !row[1]) continue // Sem máquina (Coluna B)
-        const maq = String(row[1] ?? '').trim()
-        if (!maq || maq.toLowerCase().includes('turno')) continue
+        const rawMaq = String(row[1] ?? '').trim().toUpperCase()
+        if (rawMaq.includes('TURNO')) continue
+        const maq = rawMaq.replace(/\s+/g, '')
 
         const dateStr = parseDate(row[2]) // Coluna C
         if (!dateStr) continue

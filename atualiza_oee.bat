@@ -9,7 +9,7 @@ git diff --cached --quiet
 if %errorlevel%==0 (
     echo Nenhuma alteracao detectada.
 ) else (
-    git commit -m "Atualização automática (%date% %time%)"
+    git commit -m "Atualizacao automatica (%date% %time%)"
     git push origin main
 )
 

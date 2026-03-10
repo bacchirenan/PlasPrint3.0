@@ -26,10 +26,19 @@ function maskDate(value: string) {
 }
 
 const MAQ_ORDER = ['28', '29', '180', '181', '182']
+const MAQ_MAP: Record<string, string> = {
+    '28': '28-CX-360G', '29': '29-CX-360G',
+    '180': '180-CX-360G', '181': '181-CX-360G', '182': '182-CX-360G',
+}
+
+function normMaq(m: string) {
+    return (m || '').replace(/\s+/g, '').toUpperCase()
+}
 
 export default function RelatoriosPage() {
     const [generating, setGenerating] = useState(false)
     const [reportType, setReportType] = useState<string>('geral')
+    const [version] = useState('v2.0.1')
 
     // Filtros
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
@@ -47,11 +56,10 @@ export default function RelatoriosPage() {
     const [reportData, setReportData] = useState<any>(null)
 
     const calculateReportData = (oeeData: any[], prodData: any[], canudosData: any, fichas: any[]) => {
-        const maqs = selMaqs.flatMap(m => [`${m}-CX-360G`, `${m}- CX-360G`]);
-
+        const selNorms = selMaqs.map(k => normMaq(MAQ_MAP[k])).filter(Boolean)
         const filtrar = (rows: any[]) => rows.filter(r => {
             if (r.data < dateFrom || r.data > dateTo) return false
-            if (!maqs.some(m => r.maquina === m)) return false
+            if (!selNorms.includes(normMaq(r.maquina))) return false
             return true
         })
 
@@ -142,7 +150,7 @@ export default function RelatoriosPage() {
         oeeData.forEach(r => {
             // Filtro Histórico Mensal: Máquinas Selecionadas e Limite de Data
             if (r.data < `${yearBase}-01-01` || r.data > historicLimit) return
-            if (!maqs.some(m => r.maquina === m)) return
+            if (!selNorms.includes(normMaq(r.maquina))) return
 
             const [y, m] = r.data.split('-')
             const monthKey = `${monthNames[parseInt(m) - 1]}`
@@ -160,7 +168,7 @@ export default function RelatoriosPage() {
         prodData.forEach(r => {
             // Filtro Histórico Mensal: Máquinas Selecionadas e Limite de Data
             if (r.data < `${yearBase}-01-01` || r.data > historicLimit) return
-            if (!maqs.some(m => r.maquina === m)) return
+            if (!selNorms.includes(normMaq(r.maquina))) return
 
             const [y, m] = r.data.split('-')
             const monthKey = `${monthNames[parseInt(m) - 1]}`
@@ -196,8 +204,14 @@ export default function RelatoriosPage() {
             }
         }
 
-        const maqList = selMaqs.map(m => (m === '180' || m === '181' || m === '182') ? `${m}- CX-360G` : `${m}-CX-360G`)
-        const values = maqList.map(name => (machineTotals[name] || 0) / (3600 * nDays))
+        const values = selNorms.map(name => {
+            // Tenta achar o total para a máquina normalizada
+            let total = 0
+            for (const mName in machineTotals) {
+                if (normMaq(mName) === name) total += machineTotals[mName]
+            }
+            return total / (3600 * nDays)
+        })
         const avgHrsProduzindo = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0
 
         // Horas totais base para produtividade (média de 1 máquina pelo período)
@@ -253,6 +267,7 @@ export default function RelatoriosPage() {
 
             // 2. Processar Dados
             const calc = calculateReportData(oeeRes.data, oeeRes.producao, canRes.data, fichasRes.fichas || [])
+            console.log(`[Relatorios] Dados processados. Periodo: ${calc.periodo}, Prod: ${calc.producaoTotal}`)
             setReportData(calc)
 
             // 3. Aguardar renderização e Gerar PDF
@@ -283,11 +298,11 @@ export default function RelatoriosPage() {
         <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
                 <h1 style={{ fontSize: 24, fontWeight: 800 }}>Repositório de Relatórios</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Gere documentos analíticos consolidados em formato PDF</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Gere documentos analíticos consolidados em formato PDF <span style={{ opacity: 0.3 }}>({version})</span></p>
             </div>
 
             {/* Filtros Identicos aos Dashboards */}
-            <div className="card" style={{ padding: '20px 24px' }}>
+            <div className="card" style={{ padding: '20px 24px', border: '1px solid rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.05)' }}>
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <div>
                         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>De</label>

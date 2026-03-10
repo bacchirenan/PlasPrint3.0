@@ -51,12 +51,15 @@ export default function Navbar({ userRole }: { userRole?: string }) {
                 fontSize: '48px',
                 fontWeight: 800,
                 color: '#fff',
-                margin: '0 0 40px 0',
+                margin: '0 0 5px 0',
                 letterSpacing: '-2px',
                 textShadow: '0 0 30px rgba(59, 130, 246, 0.3)'
             }}>
                 PlasPrint <span style={{ color: 'var(--primary-accent)' }}>IA</span>
             </h1>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginBottom: '30px' }}>
+                v2.0.1-prod | {process.env.NEXT_PUBLIC_GITHUB_REPO || 'bacchirenan/PlasPrint3.0'}
+            </div>
 
             {/* Links de Navegação (Tabs) - Alinhado perfeitamente com a largura dos cards e filtros */}
             <div style={{
