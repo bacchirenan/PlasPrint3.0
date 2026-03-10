@@ -67,6 +67,7 @@ export default function OeePage() {
     const [dateFrom, setDateFrom] = useState(yesterday)
     const [dateTo, setDateTo] = useState(yesterday)
     const [selMaqs, setSelMaqs] = useState<string[]>(MAQ_ORDER)
+    const [selRegs, setSelRegs] = useState<string[]>([])
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -86,14 +87,65 @@ export default function OeePage() {
 
     useEffect(() => { load() }, [load])
 
+    const allRegistros = useMemo(() => {
+        const blacklist = [
+            '0019', '0067', '0068', '0101', '0102', '0110', '0308', '0309', '0310', '0314', '0339', '0344', '0508', '1101', '1127',
+            '0002', '0022', '0063', '0097', '0130', '0505', '1102', '1108', '1120'
+        ]
+        const set = new Set<string>()
+        producaoRows.forEach(r => {
+            if (r.registro) {
+                const code = r.registro.split(' ')[0]
+                if (!blacklist.includes(code)) {
+                    set.add(r.registro)
+                }
+            }
+        })
+        return Array.from(set).sort()
+    }, [producaoRows])
+
+    // Filtros padrão iniciais (0999, 1100 e Produção)
+    const hasInitializedRegs = useRef(false)
+    useEffect(() => {
+        if (!loading && producaoRows.length > 0 && !hasInitializedRegs.current) {
+            const defaults = allRegistros.filter(r => {
+                const code = r.split(' ')[0]
+                return code === '0999' || code === '1100' || r.toLowerCase().includes('produção')
+            })
+            if (defaults.length > 0) {
+                setSelRegs(defaults)
+                hasInitializedRegs.current = true
+            }
+        }
+    }, [loading, producaoRows, allRegistros])
+
+    const hourToRegsMap = useMemo(() => {
+        const map: Record<string, Set<string>> = {}
+        producaoRows.forEach(r => {
+            const mNorm = normMaq(r.maquina)
+            const key = `${mNorm}|${r.data}|${r.hora}`
+            if (!map[key]) map[key] = new Set()
+            map[key].add(r.registro)
+        })
+        return map
+    }, [producaoRows])
+
     const filtered = useMemo(() => {
         const selNorms = selMaqs.map(k => normMaq(MAQ_MAP[k])).filter(Boolean)
         return rows.filter(r => {
-            if (!selNorms.includes(normMaq(r.maquina))) return false
+            const mNorm = normMaq(r.maquina)
+            if (!selNorms.includes(mNorm)) return false
             if (r.data < dateFrom || r.data > dateTo) return false
+
+            if (selRegs.length > 0) {
+                const key = `${mNorm}|${r.data}|${r.hora}`
+                const regs = hourToRegsMap[key]
+                if (!regs || !selRegs.some(sr => regs.has(sr))) return false
+            }
+
             return true
         })
-    }, [rows, selMaqs, dateFrom, dateTo])
+    }, [rows, selMaqs, dateFrom, dateTo, selRegs, hourToRegsMap])
 
     // ─ Métricas Gerais
     const metrics = useMemo(() => {
@@ -116,7 +168,11 @@ export default function OeePage() {
         const dates = new Set<string>()
 
         for (const r of filtProd) {
-            if (r.registro.toLowerCase().includes('produção')) {
+            const isMatch = selRegs.length === 0
+                ? r.registro.toLowerCase().includes('produção')
+                : selRegs.includes(r.registro)
+
+            if (isMatch) {
                 const mNorm = normMaq(r.maquina)
                 if (!acc[r.data]) acc[r.data] = {}
                 acc[r.data][mNorm] = (acc[r.data][mNorm] || 0) + r.tempo_segundos
@@ -132,19 +188,22 @@ export default function OeePage() {
             }
         }
 
-        const activeMaqs = MAQ_ORDER.filter(k => selMaqs.includes(k))
-        const yValues = activeMaqs.map(k => {
+        const items = MAQ_ORDER.filter(k => selMaqs.includes(k)).map(k => {
             const name = normMaq(MAQ_MAP[k])
-            return (totals[name] || 0) / (3600 * nDays)
+            const total = totals[name] || 0
+            const hours = total / (3600 * nDays)
+            return { key: k, hours }
         })
 
+        const yValues = items.map(i => i.hours)
+
         return {
-            x: activeMaqs.map(cleanMaqKey),
+            x: items.map(i => cleanMaqKey(i.key)),
             y: yValues,
             text: yValues.map(v => v.toFixed(1)),
             avg: yValues.length ? yValues.reduce((a, b) => a + b, 0) / yValues.length : 0
         }
-    }, [producaoRows, selMaqs, dateFrom, dateTo])
+    }, [producaoRows, selMaqs, dateFrom, dateTo, selRegs])
 
     // ─ Gráfico Evolução Temporal
     const chartTimeline = useMemo(() => {
@@ -178,11 +237,11 @@ export default function OeePage() {
             hourly[r.hora].teepSum += r.teep
             hourly[r.hora].teepN++
         }
-        const hours = Object.keys(hourly).map(Number).sort((a, b) => a - b)
+        const hours = Array.from({ length: 16 }, (_, i) => i + 6) // de 6 até 21
         return {
             x: hours.map(h => `${h}h`),
-            oee: hours.map(h => hourly[h].oeeN > 0 ? hourly[h].oeeSum / hourly[h].oeeN : 0),
-            teep: hours.map(h => hourly[h].teepN > 0 ? hourly[h].teepSum / hourly[h].teepN : 0),
+            oee: hours.map(h => (hourly[h] && hourly[h].oeeN > 0) ? hourly[h].oeeSum / hourly[h].oeeN : 0),
+            teep: hours.map(h => (hourly[h] && hourly[h].teepN > 0) ? hourly[h].teepSum / hourly[h].teepN : 0),
         }
     }, [filtered])
 
@@ -198,17 +257,17 @@ export default function OeePage() {
             maq[mNorm].teepSum += r.teep
             maq[mNorm].teepN++
         }
-        const activeMaqs = MAQ_ORDER.filter(k => selMaqs.includes(k))
+        const items = MAQ_ORDER.filter(k => selMaqs.includes(k)).map(k => {
+            const name = normMaq(MAQ_MAP[k])
+            const oee = (maq[name] && maq[name].oeeN > 0) ? maq[name].oeeSum / maq[name].oeeN : 0
+            const teep = (maq[name] && maq[name].teepN > 0) ? maq[name].teepSum / maq[name].teepN : 0
+            return { key: k, oee, teep }
+        })
+
         return {
-            x: activeMaqs.map(cleanMaqKey),
-            oee: activeMaqs.map(k => {
-                const name = normMaq(MAQ_MAP[k])
-                return (maq[name] && maq[name].oeeN > 0) ? maq[name].oeeSum / maq[name].oeeN : 0
-            }),
-            teep: activeMaqs.map(k => {
-                const name = normMaq(MAQ_MAP[k])
-                return (maq[name] && maq[name].teepN > 0) ? maq[name].teepSum / maq[name].teepN : 0
-            })
+            x: items.map(i => cleanMaqKey(i.key)),
+            oee: items.map(i => i.oee),
+            teep: items.map(i => i.teep)
         }
     }, [filtered, selMaqs])
 
@@ -234,6 +293,10 @@ export default function OeePage() {
         setSelMaqs(prev => prev.includes(k) ? prev.filter(m => m !== k) : [...prev, k])
     }
 
+    const toggleReg = (r: string) => {
+        setSelRegs(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])
+    }
+
     if (loading) {
         return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: 16 }}>
@@ -249,16 +312,12 @@ export default function OeePage() {
             flexDirection: 'column',
             gap: 20,
             width: '100%',
-            maxWidth: '1400px',
-            margin: '0 auto',
-            padding: '0 20px' // Mesma borda da Navbar
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
                 <div>
-                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Indicadores de Eficiência <span style={{ opacity: 0.3, fontSize: 12 }}>(v2.0.1)</span></h1>
+                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Indicadores de Eficiência</h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Análise detalhada de OEE e TEEP por máquina, turno e horário</p>
                 </div>
-                <button className="btn btn-secondary" onClick={load} style={{ height: 40, width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↻</button>
             </div>
 
             {/* Filtros / Menu Bar */}
@@ -321,9 +380,9 @@ export default function OeePage() {
                         </div>
                     </div>
 
-                    <div style={{ flex: '2 1 auto', minWidth: '300px' }}>
+                    <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Seleção de Máquinas</label>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             {MAQ_ORDER.map(k => (
                                 <button key={k}
                                     style={{ padding: '8px 16px', fontSize: 12, borderRadius: 8, fontWeight: 600, transition: 'all 0.2s' }}
@@ -338,6 +397,38 @@ export default function OeePage() {
                                 {selMaqs.length === MAQ_ORDER.length ? 'DESELECIONAR TODAS' : 'SELECIONAR TODAS'}
                             </button>
                         </div>
+                    </div>
+
+                    <div style={{ flex: '1 1 100%', marginTop: 8 }}>
+                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Filtro por Paradas (Registro)</label>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxHeight: '120px', overflowY: 'auto', padding: '10px', background: 'rgba(0,0,0,0.1)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                            {allRegistros.map(reg => (
+                                <button key={reg}
+                                    onClick={() => toggleReg(reg)}
+                                    style={{
+                                        padding: '5px 12px',
+                                        fontSize: 10,
+                                        borderRadius: 20,
+                                        border: '1px solid var(--border)',
+                                        background: selRegs.includes(reg) ? 'var(--primary-accent)' : 'transparent',
+                                        color: selRegs.includes(reg) ? '#fff' : 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                        fontWeight: 600,
+                                        transition: 'all 0.2s',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                    {reg}
+                                </button>
+                            ))}
+                            {allRegistros.length === 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Nenhum registro encontrado</span>}
+                        </div>
+                        {selRegs.length > 0 && (
+                            <button
+                                onClick={() => setSelRegs([])}
+                                style={{ marginTop: 8, fontSize: 10, color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                                ✕ LIMPAR FILTRO DE PARADAS
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -387,25 +478,30 @@ export default function OeePage() {
                 <div className="card" style={{ padding: 20 }}>
                     <div className="card-title" style={{ marginBottom: 16 }}>OEE por Máquina</div>
                     <Plot
-                        data={[{
-                            type: 'bar',
-                            x: chartByMaq.x,
-                            y: chartByMaq.oee,
-                            text: chartByMaq.oee.map(fmtP),
-                            textposition: 'outside',
-                            textfont: { color: 'white', size: 12, weight: 800, family: 'var(--font-primary-local), sans-serif' },
-                            marker: {
-                                color: ['#89c153', '#89c153', '#09a38c', '#09a38c', '#00adef'],
-                            },
-                            cliponaxis: false
-                        }]}
+                        data={chartByMaq.x.map((mKey, idx) => {
+                            const colors = ['#1a335f', '#4466b1', '#00adef', '#09a38c', '#89c153']
+                            return {
+                                type: 'bar',
+                                name: `Máquina ${mKey}`,
+                                x: [mKey],
+                                y: [chartByMaq.oee[idx]],
+                                text: [fmtP(chartByMaq.oee[idx])],
+                                textposition: 'outside',
+                                textfont: { color: 'white', size: 12, weight: 800, family: 'var(--font-primary-local), sans-serif' },
+                                marker: {
+                                    color: colors[idx % colors.length],
+                                },
+                                cliponaxis: false
+                            }
+                        })}
                         layout={{
                             ...LAYOUT_BASE,
-                            height: 350,
+                            height: 400,
+                            showlegend: false,
                             yaxis: { visible: false, range: [0, Math.max(...chartByMaq.oee, 0.5) * 1.3] },
                             xaxis: {
-                                title: 'Máquina',
-                                tickfont: { color: 'white', weight: 700, family: 'var(--font-primary-local), sans-serif' }
+                                type: 'category',
+                                tickfont: { color: 'white', weight: 700, family: 'var(--font-primary-local), sans-serif', size: 12 }
                             },
                         }}
                         config={{ displayModeBar: false, responsive: true }}
@@ -414,28 +510,33 @@ export default function OeePage() {
                 </div>
             </div>
 
-            {/* Horas Produzidas por Máquina */}
             <div className="card" style={{ padding: 20 }}>
                 <div className="card-title" style={{ marginBottom: 16 }}>Horas Produzidas por Máquina</div>
                 <Plot
-                    data={[{
-                        type: 'bar',
-                        x: chartProducedHours.x,
-                        y: chartProducedHours.y,
-                        text: chartProducedHours.text,
-                        textposition: 'outside',
-                        textfont: { color: 'white', size: 14, weight: 800, family: 'var(--font-primary-local), sans-serif' },
-                        marker: {
-                            color: chartProducedHours.y.map(v => v >= chartProducedHours.avg ? '#89c153' : '#1a335f')
-                        },
-                        cliponaxis: false
-                    }]}
+                    data={chartProducedHours.x.map((mKey, idx) => {
+                        const colors = ['#1a335f', '#4466b1', '#00adef', '#09a38c', '#89c153']
+                        return {
+                            type: 'bar',
+                            name: `Máquina ${mKey}`,
+                            x: [mKey],
+                            y: [chartProducedHours.y[idx]],
+                            text: [chartProducedHours.text[idx]],
+                            textposition: 'outside',
+                            textfont: { color: 'white', size: 14, weight: 800, family: 'var(--font-primary-local), sans-serif' },
+                            marker: {
+                                color: colors[idx % colors.length]
+                            },
+                            cliponaxis: false
+                        }
+                    })}
                     layout={{
                         ...LAYOUT_BASE,
-                        height: 350,
+                        height: 400,
+                        showlegend: false,
                         yaxis: { visible: false, range: [0, Math.max(...chartProducedHours.y, 1) * 1.3] },
                         xaxis: {
-                            tickfont: { color: 'white', weight: 700, family: 'var(--font-primary-local), sans-serif' }
+                            type: 'category',
+                            tickfont: { color: 'white', weight: 700, family: 'var(--font-primary-local), sans-serif', size: 12 }
                         },
                         shapes: [{
                             type: 'line', x0: 0, x1: 1, xref: 'paper',

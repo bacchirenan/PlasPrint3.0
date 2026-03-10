@@ -123,15 +123,21 @@ export default function ProducaoPage() {
             acc[k] = (acc[k] || 0) + r.pecas_boas
         }
 
-        // Ordena conforme MAQ_ORDER para manter consistência
-        const sortedFullNames = MAQ_ORDER.map(k => MAQ_MAP[k])
+        const mappedEntries = MAQ_ORDER.filter(k => selMaqs.includes(k)).map(k => {
+            const name = MAQ_MAP[k]
+            return {
+                key: k,
+                name: name,
+                value: acc[name] || 0
+            }
+        })
 
         return {
-            x: sortedFullNames,
-            y: sortedFullNames.map(name => acc[name] || 0),
-            text: sortedFullNames.map(name => fmtN(acc[name] || 0))
+            x: mappedEntries.map(e => e.name),
+            y: mappedEntries.map(e => e.value),
+            text: mappedEntries.map(e => fmtN(e.value))
         }
-    }, [filtered])
+    }, [filtered, selMaqs])
 
     // ─ Gráfico Diário
     const chartDaily = useMemo(() => {
@@ -176,23 +182,25 @@ export default function ProducaoPage() {
             }
         }
 
-        const activeMaqs = MAQ_ORDER.filter(k => selMaqs.includes(k))
-        const yValues = activeMaqs.map(k => {
+        const items = MAQ_ORDER.filter(k => selMaqs.includes(k)).map(k => {
             const name = normMaq(MAQ_MAP[k])
             let total = 0
             for (const mName in totals) {
                 if (normMaq(mName) === name) total += totals[mName]
             }
-            return total / (3600 * nDays)
+            const hours = total / (3600 * nDays)
+            return { key: k, hours }
         })
 
+        const yValues = items.map(i => i.hours)
+
         return {
-            x: activeMaqs.map(cleanMaqKey),
+            x: items.map(i => cleanMaqKey(i.key)),
             y: yValues,
             text: yValues.map(v => v.toFixed(1)),
             avg: yValues.length ? yValues.reduce((a, b) => a + b, 0) / yValues.length : 0
         }
-    }, [filtered])
+    }, [filtered, selMaqs])
 
     // ─ Gráfico Horário
     const chartHourly = useMemo(() => {
@@ -200,7 +208,7 @@ export default function ProducaoPage() {
         for (const r of filtered) {
             acc[r.hora] = (acc[r.hora] || 0) + r.pecas_boas
         }
-        const hours = Array.from({ length: 16 }, (_, i) => i + 6)
+        const hours = Array.from({ length: 16 }, (_, i) => i + 6) // de 6 até 21
         return { x: hours, y: hours.map(h => acc[h] || 0) }
     }, [filtered])
 
@@ -214,7 +222,7 @@ export default function ProducaoPage() {
                 acc[k] = (acc[k] || 0) + r.pecas_boas
             }
         }
-        const sorted = Object.entries(acc).sort((a, b) => a[1] - b[1])
+        const sorted = Object.entries(acc).sort((a, b) => b[1] - a[1])
         return { x: sorted.map(e => e[1]), y: sorted.map(e => e[0]) }
     }, [filtered])
 
@@ -235,7 +243,7 @@ export default function ProducaoPage() {
             const k = r.produto.trim().split(' - ').slice(1).join(' - ').trim() || r.produto.trim()
             acc[k] = (acc[k] || 0) + r.pecas_boas
         }
-        const sorted = Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 10).reverse()
+        const sorted = Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 10)
         return { x: sorted.map(e => e[1]), y: sorted.map(e => e[0]) }
     }, [filtered])
 
@@ -252,8 +260,8 @@ export default function ProducaoPage() {
             const sorted = Object.entries(acc)
                 .map(([reg, sec]) => ({ reg, h: sec / 3600 }))
                 .filter(e => e.h >= 1) // Apenas paradas com 1h ou mais no total
-                .sort((a, b) => a.h - b.h)
-                .slice(-15)
+                .sort((a, b) => b.h - a.h)
+                .slice(0, 15)
             return { mode: 'motivo', x: sorted.map(e => e.h), y: sorted.map(e => e.reg) }
         } else {
             const acc: Record<string, Record<string, number>> = {}
@@ -300,7 +308,7 @@ export default function ProducaoPage() {
         <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Título */}
             <div>
-                <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Controle de Produção <span style={{ opacity: 0.3, fontSize: 12 }}>(v2.0.1)</span></h1>
+                <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Controle de Produção</h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{filtered.length} registros no período selecionado</p>
             </div>
 
@@ -363,7 +371,7 @@ export default function ProducaoPage() {
                                 style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none', top: 0, right: 0 }} />
                         </div>
                     </div>
-                    <div>
+                    <div style={{ marginLeft: 'auto' }}>
                         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Máquinas</label>
                         <div style={{ display: 'flex', gap: 6 }}>
                             {MAQ_ORDER.map(k => (
@@ -375,9 +383,6 @@ export default function ProducaoPage() {
                             ))}
                         </div>
                     </div>
-                    <button className="btn btn-secondary" onClick={load} style={{ marginLeft: 'auto' }}>
-                        ↻ Atualizar
-                    </button>
                 </div>
             </div>
 
@@ -397,41 +402,41 @@ export default function ProducaoPage() {
                 ))}
             </div>
 
-            {/* Por Máquina */}
             <div className="card" style={{ padding: 20 }}>
                 <div className="card-title" style={{ marginBottom: 16 }}>Peças Boas por Máquina</div>
                 <Plot
-                    data={[{
-                        type: 'bar',
-                        x: chartByMaq.x,
-                        y: chartByMaq.y,
-                        text: chartByMaq.text,
-                        textposition: 'outside',
-                        textfont: {
-                            color: '#fff',
-                            weight: 800,
-                            family: 'var(--font-primary-local), sans-serif',
-                            size: 13
-                        },
-                        marker: {
-                            color: ['#1a335f', '#1a335f', '#00adef', '#09a38c', '#89c153'],
-                            line: { width: 0 }
-                        },
-                        cliponaxis: false
-                    }]}
+                    data={chartByMaq.x.map((mName, idx) => {
+                        const mKey = mName.split('-')[0].trim()
+                        const colors = ['#1a335f', '#4466b1', '#00adef', '#09a38c', '#89c153']
+                        return {
+                            type: 'bar',
+                            name: `Máquina ${mKey}`,
+                            x: [mKey],
+                            y: [chartByMaq.y[idx]],
+                            text: [chartByMaq.text[idx]],
+                            textposition: 'outside',
+                            textfont: {
+                                color: '#fff',
+                                weight: 800,
+                                family: 'var(--font-primary-local), sans-serif',
+                                size: 13
+                            },
+                            marker: {
+                                color: colors[idx % colors.length],
+                                line: { width: 0 }
+                            },
+                            cliponaxis: false
+                        }
+                    })}
                     layout={{
                         ...LAYOUT_BASE,
-                        height: 380,
+                        height: 400,
+                        showlegend: false,
                         yaxis: { visible: false, range: [0, Math.max(...chartByMaq.y, 10) * 1.15] },
                         xaxis: {
-                            title: {
-                                text: 'Máquina',
-                                font: { size: 14, color: '#fff', family: 'var(--font-primary-local), sans-serif' },
-                                standoff: 25
-                            },
-                            tickfont: { size: 10, color: '#fff', weight: 700, family: 'var(--font-primary-local), sans-serif' }
+                            type: 'category',
+                            tickfont: { size: 12, color: '#fff', weight: 700, family: 'var(--font-primary-local), sans-serif' }
                         },
-                        showlegend: false,
                         margin: { t: 50, b: 80, l: 40, r: 40 }
                     }}
                     config={{ displayModeBar: false, responsive: true }}
@@ -562,22 +567,40 @@ export default function ProducaoPage() {
                 <div className="card" style={{ padding: 20 }}>
                     <div className="card-title" style={{ marginBottom: 16 }}>Top 10 Produtos Mais Fabricados</div>
                     <Plot
-                        data={[{
-                            type: 'bar', x: chartTopProd.y.map(s => s.length > 15 ? s.substring(0, 15) + '...' : s), y: chartTopProd.x,
-                            text: chartTopProd.x.map(fmtN), textposition: 'outside',
-                            textfont: { color: 'white', family: 'var(--font-primary-local), sans-serif', weight: 800, size: 9 },
-                            marker: { color: chartTopProd.x, colorscale: [[0, '#1a335f'], [0.5, '#00adef'], [1, '#89c153']], showscale: false },
-                            cliponaxis: false
-                        }]}
+                        data={chartTopProd.y.map((name, idx) => {
+                            const colors = ['#1a335f', '#4466b1', '#00adef', '#09a38c', '#89c153', '#1e3a6e', '#2563a8', '#3b82f6', '#60a5fa', '#93c5fd']
+                            return {
+                                type: 'bar',
+                                name: name,
+                                x: [idx], 
+                                y: [chartTopProd.x[idx]],
+                                text: [fmtN(chartTopProd.x[idx])],
+                                textposition: 'outside',
+                                textfont: { color: 'white', family: 'var(--font-primary-local), sans-serif', weight: 800, size: 10 },
+                                marker: { color: colors[idx % colors.length] },
+                                cliponaxis: false
+                            }
+                        })}
                         layout={{
-                            ...LAYOUT_BASE, height: 450,
+                            ...LAYOUT_BASE, 
+                            height: 480,
+                            bargap: 0.1,
+                            showlegend: true,
+                            legend: {
+                                orientation: 'v',
+                                x: 1, 
+                                xanchor: 'left',
+                                y: 1,
+                                font: { size: 9, color: '#93b8f0' },
+                                bgcolor: 'rgba(0,0,0,0)',
+                                bordercolor: 'rgba(0,0,0,0)',
+                            },
                             yaxis: { visible: false, range: [0, Math.max(...chartTopProd.x, 10) * 1.3] },
                             xaxis: {
-                                tickfont: { family: 'var(--font-primary-local), sans-serif', color: '#fff', size: 8 },
-                                tickangle: 0,
-                                automargin: true
+                                visible: false,
+                                fixedrange: true
                             },
-                            margin: { t: 40, b: 60, l: 40, r: 40 }
+                            margin: { t: 40, b: 20, l: 40, r: 280 }
                         }}
                         config={{ displayModeBar: false, responsive: true }}
                         style={{ width: '100%' }}
