@@ -141,6 +141,7 @@ export default function AssistentePage() {
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
+    const [navHeight, setNavHeight] = useState(0)
     const inputRef = useRef<HTMLInputElement>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -152,6 +153,34 @@ export default function AssistentePage() {
     // Foca o input na montagem
     useEffect(() => {
         inputRef.current?.focus()
+    }, [])
+
+    // Mede a altura real do navbar e bloqueia scroll da página
+    useEffect(() => {
+        const nav = document.querySelector('nav') as HTMLElement | null
+        const body = document.body
+        const main = document.querySelector('main') as HTMLElement | null
+
+        // Mede o navbar
+        if (nav) setNavHeight(nav.getBoundingClientRect().height)
+
+        // Bloqueia scroll
+        const prevBodyOv = body.style.overflow
+        const prevMainPb = main?.style.paddingBottom ?? ''
+        const prevMainOv = main?.style.overflow ?? ''
+        body.style.overflow = 'hidden'
+        if (main) {
+            main.style.overflow = 'hidden'
+            main.style.paddingBottom = '0'
+        }
+
+        return () => {
+            body.style.overflow = prevBodyOv
+            if (main) {
+                main.style.overflow = prevMainOv
+                main.style.paddingBottom = prevMainPb
+            }
+        }
     }, [])
 
     const handleSend = async (customMessage?: string) => {
@@ -202,161 +231,185 @@ export default function AssistentePage() {
     }
 
     return (
-        <div style={{ padding: '24px 40px 60px', maxWidth: '860px', margin: '0 auto' }}>
-
-            {/* ── Cabeçalho ─────────────────────────────── */}
-            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-                <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '12px',
-                    background: 'rgba(59, 130, 246, 0.08)',
-                    border: '1px solid rgba(59, 130, 246, 0.2)',
-                    borderRadius: '30px', padding: '6px 18px', marginBottom: '16px'
-                }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 8px var(--success)' }} />
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary-accent)', letterSpacing: '0.5px' }}>
-                        PLANILHA CONECTADA
-                    </span>
-                </div>
-                <h1 style={{ fontSize: '30px', fontWeight: 800, color: '#fff', marginBottom: '8px', letterSpacing: '-0.5px' }}>
-                    Assistente do Setor de <span style={{ color: 'var(--primary-accent)' }}>Impressão</span>
-                </h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
-                    Faça perguntas sobre erros, máquinas DACEN/PSI e procedimentos do setor.
-                </p>
-            </div>
-
-            {/* ── Barra de Busca (TOPO) ─────────────────── */}
+        /* Container externo fixo para travar scroll do body */
+        <div style={{
+            position: 'fixed',
+            top: navHeight > 0 ? `${navHeight}px` : '160px',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            overflow: 'hidden',
+        }}>
+            {/* Wrapper centralizado que segue a largura do menu (Navbar) e do resto do programa */}
             <div style={{
-                position: 'sticky',
-                top: '80px',
-                zIndex: 20,
-                marginBottom: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                width: '100%',
+                maxWidth: '1400px',
+                margin: '0 auto',
+                padding: '0 40px',
+                overflow: 'hidden',
             }}>
-                <div style={{
-                    display: 'flex',
-                    gap: '12px',
-                    background: 'rgba(13, 30, 56, 0.85)',
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(59, 130, 246, 0.25)',
-                    borderRadius: '16px',
-                    padding: '8px 8px 8px 20px',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(59,130,246,0.05)',
-                    alignItems: 'center',
-                }}>
-                    {/* Ícone de busca */}
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
 
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSend()}
-                        placeholder="Tire suas dúvidas sobre erros, máquinas DACEN, PSI..."
-                        style={{
-                            flex: 1,
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#fff',
-                            padding: '10px 0',
-                            fontSize: '15px',
-                            outline: 'none',
-                        }}
-                    />
+            {/* ── Seção Superior Fixa: Cabeçalho + Barra de Busca ── */}
+            <div style={{
+                flexShrink: 0,
+                padding: '24px 0 0',
+            }}>
+                {/* Cabeçalho */}
+                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                    <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '12px',
+                        background: 'rgba(59, 130, 246, 0.08)',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                        borderRadius: '30px', padding: '6px 18px', marginBottom: '16px'
+                    }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 8px var(--success)' }} />
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary-accent)', letterSpacing: '0.5px' }}>
+                            PLANILHA CONECTADA
+                        </span>
+                    </div>
 
-                    {/* Botão limpar, só aparece com texto */}
-                    {input && (
-                        <button
-                            onClick={() => { setInput(''); inputRef.current?.focus() }}
-                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                        </button>
-                    )}
 
-                    <button
-                        onClick={() => handleSend()}
-                        disabled={loading || !input.trim()}
-                        style={{
-                            background: loading ? 'rgba(59,130,246,0.4)' : 'var(--primary-accent)',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '12px',
-                            padding: '10px 22px',
-                            fontWeight: 700,
-                            fontSize: '13px',
-                            letterSpacing: '0.5px',
-                            cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            whiteSpace: 'nowrap',
-                            boxShadow: input.trim() ? '0 4px 14px rgba(59, 130, 246, 0.35)' : 'none'
-                        }}
-                    >
-                        {loading ? (
-                            <>
-                                <div className="spinner-sm" />
-                                Buscando...
-                            </>
-                        ) : (
-                            <>
-                                Perguntar
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="22" y1="2" x2="11" y2="13" />
-                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                </svg>
-                            </>
-                        )}
-                    </button>
                 </div>
 
-                {/* Sugestões rápidas — só aparecem no início */}
-                {messages.length === 0 && (
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
-                        {suggestedQuestions.map((q, i) => (
+                {/* ── Barra de Busca (FIXA, nunca some) ── */}
+                <div style={{ marginBottom: '16px' }}>
+                    <div style={{
+                        display: 'flex',
+                        gap: '12px',
+                        background: 'rgba(13, 30, 56, 0.92)',
+                        backdropFilter: 'blur(20px)',
+                        WebkitBackdropFilter: 'blur(20px)',
+                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                        borderRadius: '16px',
+                        padding: '8px 8px 8px 20px',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(59,130,246,0.05)',
+                        alignItems: 'center',
+                    }}>
+                        {/* Ícone de busca */}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSend()}
+                            placeholder="Tire suas dúvidas sobre erros, máquinas DACEN, PSI..."
+                            style={{
+                                flex: 1,
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#fff',
+                                padding: '10px 0',
+                                fontSize: '15px',
+                                outline: 'none',
+                            }}
+                        />
+
+                        {/* Botão limpar, só aparece com texto */}
+                        {input && (
                             <button
-                                key={i}
-                                onClick={() => handleSend(q.text)}
-                                disabled={loading}
-                                style={{
-                                    padding: '7px 14px',
-                                    borderRadius: '30px',
-                                    background: 'rgba(13, 30, 56, 0.6)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(59, 130, 246, 0.15)',
-                                    color: 'var(--text-secondary)',
-                                    fontSize: '13px',
-                                    fontWeight: 500,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                }}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.4)'
-                                    e.currentTarget.style.color = '#fff'
-                                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)'
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.15)'
-                                    e.currentTarget.style.color = 'var(--text-secondary)'
-                                    e.currentTarget.style.background = 'rgba(13, 30, 56, 0.6)'
-                                }}
+                                onClick={() => { setInput(''); inputRef.current?.focus() }}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
                             >
-                                <span style={{ fontSize: '15px' }}>{q.icon}</span>
-                                {q.text}
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                             </button>
-                        ))}
+                        )}
+
+                        <button
+                            onClick={() => handleSend()}
+                            disabled={loading || !input.trim()}
+                            style={{
+                                background: loading ? 'rgba(59,130,246,0.4)' : 'var(--primary-accent)',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '12px',
+                                padding: '10px 22px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                letterSpacing: '0.5px',
+                                cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                whiteSpace: 'nowrap',
+                                boxShadow: input.trim() ? '0 4px 14px rgba(59, 130, 246, 0.35)' : 'none'
+                            }}
+                        >
+                            {loading ? (
+                                <>
+                                    <div className="spinner-sm" />
+                                    Buscando...
+                                </>
+                            ) : (
+                                <>
+                                    Perguntar
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13" />
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                    </svg>
+                                </>
+                            )}
+                        </button>
                     </div>
-                )}
+
+                    {/* Sugestões rápidas — só aparecem no início */}
+                    {messages.length === 0 && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+                            {suggestedQuestions.map((q, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => handleSend(q.text)}
+                                    disabled={loading}
+                                    style={{
+                                        padding: '7px 14px',
+                                        borderRadius: '30px',
+                                        background: 'rgba(13, 30, 56, 0.6)',
+                                        backdropFilter: 'blur(10px)',
+                                        border: '1px solid rgba(59, 130, 246, 0.15)',
+                                        color: 'var(--text-secondary)',
+                                        fontSize: '13px',
+                                        fontWeight: 500,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.4)'
+                                        e.currentTarget.style.color = '#fff'
+                                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)'
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.15)'
+                                        e.currentTarget.style.color = 'var(--text-secondary)'
+                                        e.currentTarget.style.background = 'rgba(13, 30, 56, 0.6)'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '15px' }}>{q.icon}</span>
+                                    {q.text}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* ── Área de Mensagens (ROLÁVEL) ─────────────── */}
+            <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '8px 0 40px',
+                scrollBehavior: 'smooth',
+            }}>
 
             {/* ── Estado Vazio ───────────────────────────── */}
             {messages.length === 0 && !loading && (
@@ -370,7 +423,7 @@ export default function AssistentePage() {
                 </div>
             )}
 
-            {/* ── Fluxo de Mensagens (ABAIXO DA BARRA) ──── */}
+            {/* ── Fluxo de Mensagens ──── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {messages.map((m, i) => (
                     <div key={i} style={{ animation: 'fadeSlideDown 0.3s ease-out' }}>
@@ -466,6 +519,10 @@ export default function AssistentePage() {
 
                 <div ref={messagesEndRef} />
             </div>
+
+            </div>{/* fim da área rolável de mensagens */}
+
+            </div>{/* fim do wrapper centralizado 1400px */}
 
             <style jsx global>{`
                 @keyframes fadeSlideDown {

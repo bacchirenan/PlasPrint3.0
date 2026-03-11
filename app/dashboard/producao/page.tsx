@@ -230,6 +230,8 @@ export default function ProducaoPage() {
     const chartByShift = useMemo(() => {
         const acc: Record<string, number> = {}
         for (const r of filtered) {
+            const t = (r.turno || '').trim().toUpperCase()
+            if (t === 'TURNO C' || t === 'C') continue
             acc[r.turno] = (acc[r.turno] || 0) + r.pecas_boas
         }
         return { labels: Object.keys(acc), values: Object.values(acc) }

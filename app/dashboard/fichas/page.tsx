@@ -38,7 +38,6 @@ export default function FichasPage() {
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [error, setError] = useState<string | null>(null)
-    const [activeTab, setActiveTab] = useState<'performance' | 'financeiro'>('performance')
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
 
     // Filtros de Data
@@ -109,7 +108,7 @@ export default function FichasPage() {
         }
 
         return result
-    }, [fichas, search, sortConfig])
+    }, [fichas, search, sortConfig, dateFrom, dateTo])
 
     const handleSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc'
@@ -227,108 +226,85 @@ export default function FichasPage() {
                     <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Gestão de referências, consumos de tinta e tempos de ciclo</p>
                 </div>
 
-                {/* Filtros de Data Identicos aos outros */}
-                <div className="card" style={{ padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-end', background: 'rgba(13, 30, 56, 0.45)' }}>
-                    <div>
-                        <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700 }}>De</label>
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <input
-                                type="text"
-                                value={isoToBr(dateFrom)}
-                                onChange={e => {
-                                    const masked = maskDate(e.target.value)
-                                    if (masked.length === 10) {
-                                        const iso = brToIso(masked)
-                                        if (iso) setDateFrom(iso)
-                                    }
-                                }}
-                                style={{ width: 100, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 13, outline: 'none' }}
-                                placeholder="dd/mm/aaaa"
-                            />
-                            <button
-                                onClick={() => dateFromPickerRef.current?.showPicker()}
-                                style={{ position: 'absolute', right: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, opacity: 0.6 }}
-                            >
-                                📅
-                            </button>
-                            <input
-                                type="date"
-                                ref={dateFromPickerRef}
-                                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', right: 0 }}
-                                onChange={e => setDateFrom(e.target.value)}
-                            />
+
+            </div>
+
+            {/* --- SEÇÃO ANÁLISE FINANCEIRA (AGORA NO TOPO) --- */}
+            {metrics && (
+                <div style={{ marginBottom: 20 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Análise Financeira</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 20 }}>
+                        <div className="card" style={{ padding: '20px' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Custo Médio (por Garrafa)</div>
+                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary-bright)' }}>{fmtMoeda(metrics.media)}</div>
+                        </div>
+                        <div className="card" style={{ padding: '20px' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Produto Maior Custo (Unidade)</div>
+                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--danger)' }}>{fmtMoeda(metrics.max)}</div>
+                        </div>
+                        <div className="card" style={{ padding: '20px' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Produto Menor Custo (Unidade)</div>
+                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--success)' }}>{fmtMoeda(metrics.min)}</div>
                         </div>
                     </div>
-                    <div>
-                        <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', fontWeight: 700 }}>Até</label>
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <input
-                                type="text"
-                                value={isoToBr(dateTo)}
-                                onChange={e => {
-                                    const masked = maskDate(e.target.value)
-                                    if (masked.length === 10) {
-                                        const iso = brToIso(masked)
-                                        if (iso) setDateTo(iso)
-                                    }
-                                }}
-                                style={{ width: 100, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: '#fff', fontSize: 13, outline: 'none' }}
-                                placeholder="dd/mm/aaaa"
-                            />
-                            <button
-                                onClick={() => dateToPickerRef.current?.showPicker()}
-                                style={{ position: 'absolute', right: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, opacity: 0.6 }}
-                                aria-label="Abrir calendário"
-                            >
-                                📅
-                            </button>
-                            <input
-                                type="date"
-                                ref={dateToPickerRef}
-                                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', right: 0 }}
-                                onChange={e => setDateTo(e.target.value)}
-                            />
-                        </div>
+
+                    {config !== null && (
+                        <p style={{ 
+                            fontSize: '0.9rem', 
+                            color: 'var(--text-muted)', 
+                            marginBottom: 24,
+                            padding: '0 10px',
+                            borderLeft: '3px solid var(--primary-bright)'
+                        }}>
+                            Os custos apresentados já contemplam o imposto de importação de <strong>{(config?.imposto ?? 0).toFixed(2)}%</strong> configurado no sistema.
+                        </p>
+                    )}
+
+                    <div className="card" style={{ padding: '20px', marginBottom: 24 }}>
+                        <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Top 10: Produtos com Maior Custo (1.000 un.)</h4>
+                        <Plot
+                            data={[
+                                {
+                                    type: 'bar',
+                                    x: top10Data.x,
+                                    y: top10Data.y,
+                                    orientation: 'h',
+                                    text: top10Data.text,
+                                    textposition: 'inside',
+                                    insidetextanchor: 'end',
+                                    insidetextfont: { color: '#fff', family: 'var(--font-primary-local), sans-serif' },
+                                    marker: {
+                                        color: top10Data.x.map((_, i) => `rgba(59, 130, 246, ${0.4 + (i / 10) * 0.6})`),
+                                        line: { width: 0 }
+                                    },
+                                    hoverinfo: 'x+y'
+                                }
+                            ]}
+                            layout={{
+                                autosize: true,
+                                height: 400,
+                                margin: { l: 200, r: 20, t: 10, b: 30 }, // Ajustado margem esquerda para nomes maiores
+                                font: { family: 'var(--font-primary-local), sans-serif' },
+                                paper_bgcolor: 'transparent',
+                                plot_bgcolor: 'transparent',
+                                showlegend: false,
+                                xaxis: { showgrid: false, zeroline: false, showticklabels: false },
+                                yaxis: {
+                                    tickfont: { size: 10, color: '#fff', family: 'var(--font-primary-local), sans-serif' },
+                                    tickpadding: 10,
+                                    automargin: true
+                                }
+                            }}
+                            config={{ displayModeBar: false, responsive: true }}
+                            style={{ width: '100%' }}
+                        />
                     </div>
                 </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, marginBottom: 32, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
-                <button
-                    onClick={() => setActiveTab('performance')}
-                    style={{
-                        padding: '12px 24px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: activeTab === 'performance' ? '3px solid var(--primary-bright)' : '3px solid transparent',
-                        color: activeTab === 'performance' ? 'var(--primary-bright)' : 'var(--text-muted)',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: '0.2s'
-                    }}
-                >
-                    Performance e Consumo
-                </button>
-                <button
-                    onClick={() => setActiveTab('financeiro')}
-                    style={{
-                        padding: '12px 24px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: activeTab === 'financeiro' ? '3px solid var(--primary-bright)' : '3px solid transparent',
-                        color: activeTab === 'financeiro' ? 'var(--primary-bright)' : 'var(--text-muted)',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: '0.2s'
-                    }}
-                >
-                    Análise Financeira
-                </button>
-            </div>
+            )}
 
             {/* --- SEÇÃO PERFORMANCE E CONSUMO --- */}
-            {activeTab === 'performance' && performanceMetrics && (
-                <div style={{ marginBottom: 40 }}>
+            {performanceMetrics && (
+                <div style={{ marginBottom: 20, paddingTop: 0 }}>
                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Análise de Performance e Consumo</h3>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 30 }}>
@@ -366,7 +342,7 @@ export default function FichasPage() {
                                     textposition: 'inside',
                                     insidetextfont: {
                                         family: 'var(--font-primary-local), sans-serif',
-                                        color: ['#000', '#fff', '#000', '#fff', '#000', '#fff'], // Preto para Cyan, Yellow e White
+                                        color: ['#000', '#fff', '#000', '#fff', '#000', '#fff'],
                                         size: 11
                                     },
                                     showlegend: true
@@ -410,72 +386,6 @@ export default function FichasPage() {
                                 style={{ width: '100%' }}
                             />
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- SEÇÃO FINANCEIRA --- */}
-            {activeTab === 'financeiro' && metrics && (
-                <div style={{ marginBottom: 40 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 20 }}>
-                        <div className="card" style={{ padding: '20px' }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Custo Médio (por Garrafa)</div>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary-bright)' }}>{fmtMoeda(metrics.media)}</div>
-                        </div>
-                        <div className="card" style={{ padding: '20px' }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Produto Maior Custo (Unidade)</div>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--danger)' }}>{fmtMoeda(metrics.max)}</div>
-                        </div>
-                        <div className="card" style={{ padding: '20px' }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>Produto Menor Custo (Unidade)</div>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--success)' }}>{fmtMoeda(metrics.min)}</div>
-                        </div>
-                    </div>
-
-                    {config !== null && (
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: -10, marginBottom: 24 }}>
-                            *Imposto de importação de {(config?.imposto ?? 0).toFixed(2)}% já incluído nos valores acima.
-                        </p>
-                    )}
-
-                    <div className="card" style={{ padding: '20px' }}>
-                        <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Top 10: Produtos com Maior Custo (1.000 un.)</h4>
-                        <Plot
-                            data={[
-                                {
-                                    type: 'bar',
-                                    x: top10Data.x,
-                                    y: top10Data.y,
-                                    orientation: 'h',
-                                    text: top10Data.text,
-                                    textposition: 'inside',
-                                    insidetextanchor: 'end',
-                                    insidetextfont: { color: '#fff', family: 'var(--font-primary-local), sans-serif' },
-                                    marker: {
-                                        color: top10Data.x.map((_, i) => `rgba(59, 130, 246, ${0.4 + (i / 10) * 0.6})`),
-                                        line: { width: 0 }
-                                    },
-                                    hoverinfo: 'x+y'
-                                }
-                            ]}
-                            layout={{
-                                autosize: true,
-                                height: 400,
-                                margin: { l: 120, r: 20, t: 10, b: 30 },
-                                font: { family: 'var(--font-primary-local), sans-serif' },
-                                paper_bgcolor: 'transparent',
-                                plot_bgcolor: 'transparent',
-                                showlegend: false,
-                                xaxis: { showgrid: false, zeroline: false, showticklabels: false },
-                                yaxis: {
-                                    tickfont: { size: 10, color: '#fff', family: 'var(--font-primary-local), sans-serif' },
-                                    tickpadding: 10,
-                                    automargin: true
-                                }
-                            }}
-                            config={{ displayModeBar: false, responsive: true }}
-                            style={{ width: '100%' }}
-                        />
                     </div>
                 </div>
             )}
@@ -528,8 +438,6 @@ export default function FichasPage() {
                                 >
                                     Custo (1k) {sortConfig?.key === 'custo' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
                                 </th>
-                                <th style={{ padding: '12px 20px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Dimensões</th>
-                                <th style={{ padding: '12px 20px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-card)' }}>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -545,12 +453,6 @@ export default function FichasPage() {
                                         <td style={{ padding: '12px 20px', textAlign: 'center', fontSize: 13 }}>{f.tempo_s}s</td>
                                         <td style={{ padding: '12px 20px', textAlign: 'center', fontSize: 13, color: 'var(--success)', fontWeight: 600 }}>{totalInk.toFixed(2)} ml</td>
                                         <td style={{ padding: '12px 20px', textAlign: 'center', fontSize: 13, color: 'var(--info)', fontWeight: 600 }}>{fmtMoeda2(f.custo_tinta_total || 0)}</td>
-                                        <td style={{ padding: '12px 20px' }}>
-                                            <div style={{ fontSize: 12, textAlign: 'center' }}>{f.largura} x {f.altura} mm</div>
-                                        </td>
-                                        <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                                            <button className="btn btn-sm" style={{ padding: '4px 12px', fontSize: 12, background: 'rgba(255,255,255,0.05)' }}>Detalhes</button>
-                                        </td>
                                     </tr>
                                 )
                             })}
