@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 export async function POST(req: Request) {
     try {
@@ -10,29 +11,48 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
         }
 
-        const { message } = await req.json()
+        const { message, history } = await req.json()
         const apiKey = process.env.GEMINI_API_KEY?.trim()
 
-        if (!apiKey) return NextResponse.json({ error: 'Falta chave' }, { status: 500 })
+        if (!apiKey) return NextResponse.json({ error: 'Falta chave API (GEMINI_API_KEY)' }, { status: 500 })
 
-        // TESTE MINIMALISTA: Sem contexto, apenas a pergunta
-        const payload = {
-            contents: [{ parts: [{ text: message }] }]
+        // 1. Busca a base de conhecimento no servidor (evita CORS)
+        let knowledgeBase = ""
+        try {
+            const kbRes = await fetch('https://docs.google.com/spreadsheets/d/1zm25bJVw4zbi9W34YNBqZz72EpHZrv1ngImG87n1muw/export?format=csv', { next: { revalidate: 300 } })
+            knowledgeBase = await kbRes.text()
+        } catch (e) {
+            console.error("Erro ao ler planilha no servidor:", e)
         }
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+        const context = `BASE DE CONHECIMENTO:\n${knowledgeBase}\n\nVocê é o assistente IA do PlasPrint. Responda em Português do Brasil de forma profissional e direta.`
+
+        // 2. Inicializa o SDK
+        const genAI = new GoogleGenerativeAI(apiKey)
+        // Usando flash-latest que é mais resiliente
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+
+        // 3. Monta o chat
+        const chat = model.startChat({
+            history: history || [],
+            generationConfig: { maxOutputTokens: 1000 }
         })
 
-        const data = await response.json()
-        if (data.error) throw new Error(data.error.message)
+        console.log("Chamando Gemini SDK com prompt de tamanho:", context.length + message.length)
+        
+        // Enviamos o contexto como parte do prompt do usuário para garantir que ele seja lido
+        const fullPrompt = `${context}\n\nPERGUNTA: ${message}`
+        const result = await chat.sendMessage(fullPrompt)
+        const response = await result.response
+        const text = response.text()
 
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sem resposta.'
         return NextResponse.json({ text })
 
     } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 500 })
+        console.error("Erro na rota /api/chat:", err)
+        return NextResponse.json({ 
+            error: err.message || 'Erro interno no assistente', 
+            details: err.toString() 
+        }, { status: 500 })
     }
 }

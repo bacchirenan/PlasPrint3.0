@@ -23,34 +23,26 @@ export default function AssistentePage() {
         setLoading(true)
 
         try {
-            // Busca base de conhecimento da planilha
-            let knowledgeBase = ""
-            try {
-                const sheetRes = await fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vRygwbwwW8uBVL2msK-KJ_q7nzc_1td56hqcDEJoDLqQ56NH7cIJQ7o7c6Y2kLf_IPjG4Fo3nJV1bch/pub?output=csv')
-                knowledgeBase = await sheetRes.text()
-            } catch (e) {
-                console.error('Erro ao ler base de conhecimento:', e)
-            }
-
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: currentInput,
-                    history: messages.slice(0, 6).reverse(), // Reverte para manter ordem lógica no modelo
-                    context: `BASE DE CONHECIMENTO (REGRAS E DADOS EXTRA):\n${knowledgeBase}\n\nDados de Produção (M28, M29, M180, M181, M182), OEE, TEEP e Fichas Técnicas disponíveis.`
+                    history: messages.slice(0, 6).reverse()
                 })
             })
 
             const data = await res.json()
-            if (data.error) {
-                setMessages(prev => [{ role: 'model', parts: [{ text: `❌ ${data.error}${data.details ? ` (${data.details})` : ''}` }] }, ...prev])
+            if (!res.ok) {
+                console.error("Erro no chat:", data)
+                setMessages(prev => [{ role: 'model', parts: [{ text: `❌ ${data.error || 'Erro desconhecido'}` }] }, ...prev])
                 return
             }
 
             setMessages(prev => [{ role: 'model', parts: [{ text: data.text }] }, ...prev])
         } catch (e: any) {
-            setMessages(prev => [{ role: 'model', parts: [{ text: '❌ Erro de conexão com o servidor.' }] }, ...prev])
+            console.error("Falha no fetch:", e)
+            setMessages(prev => [{ role: 'model', parts: [{ text: `❌ Falha ao conectar com o assistente: ${e.message}` }] }, ...prev])
         } finally {
             setLoading(false)
         }
