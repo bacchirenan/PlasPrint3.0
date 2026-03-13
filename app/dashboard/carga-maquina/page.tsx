@@ -161,19 +161,20 @@ export default function CargaMaquinaPage() {
     const loadResources = async (isInitial = false) => {
         setLoading(true)
         
-        // 1. Local Storage (Apenas no carregamento inicial para evitar sobreposição)
+        // 1. Banco de Dados (Ordens Programadas)
         if (isInitial) {
-            const saved = localStorage.getItem('plasprint_ordens_programadas')
-            if (saved) {
-                try {
-                    setOrdens(JSON.parse(saved))
-                } catch (e) {
-                    console.error("Erro ao carregar ordens", e)
+            try {
+                const res = await fetch('/api/ordens')
+                const json = await res.json()
+                if (json.data) {
+                    setOrdens(json.data)
                 }
+            } catch (e) {
+                console.error("Erro ao carregar ordens do banco:", e)
             }
         }
 
-        // 2. Produção API
+        // 2. Produção API (Planilha GitHub)
         try {
             const res = await fetch('/api/data/producao?t=' + Date.now())
             const json = await res.json()
@@ -192,14 +193,6 @@ export default function CargaMaquinaPage() {
         loadResources(true)
     }, [])
 
-    // Salvar no Local Storage sempre que ordens mudar
-    useEffect(() => {
-        // Não salvamos se estiver carregando os dados iniciais, 
-        // para não sobrescrever o storage com um array vazio antes de ler o que já existe
-        if (!loading || ordens.length > 0) {
-            localStorage.setItem('plasprint_ordens_programadas', JSON.stringify(ordens))
-        }
-    }, [ordens, loading])
 
     // ─── Processamento de Dados (Search e Agregação) ───────────────────────────
     const processedData = useMemo(() => {
@@ -363,10 +356,10 @@ export default function CargaMaquinaPage() {
         setIsModalOpen(true)
     }
 
-    const handleSave = (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
-        const newOrdem: OrdemProgramada = {
-            id: editingOrder?.id || Math.random().toString(36).substr(2, 9),
+        
+        const payload = {
             os: formOS,
             produto: formProduto,
             ciclo: parseFloat(formCiclo) || 0,
@@ -375,18 +368,58 @@ export default function CargaMaquinaPage() {
             updated_at: new Date().toISOString()
         }
 
-        if (editingOrder) {
-            setOrdens(prev => prev.map(o => o.id === editingOrder.id ? newOrdem : o))
-        } else {
-            newOrdem.created_at = new Date().toISOString()
-            setOrdens(prev => [newOrdem, ...prev])
+        try {
+            let res;
+            if (editingOrder) {
+                res = await fetch(`/api/ordens/${editingOrder.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+            } else {
+                res = await fetch('/api/ordens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...payload,
+                        created_at: new Date().toISOString()
+                    })
+                })
+            }
+
+            const json = await res.json()
+
+            if (!res.ok) {
+                throw new Error(json.error || 'Erro desconhecido ao salvar')
+            }
+
+            if (json.data) {
+                if (editingOrder) {
+                    setOrdens(prev => prev.map(o => o.id === editingOrder.id ? json.data : o))
+                } else {
+                    setOrdens(prev => [json.data, ...prev])
+                }
+                setIsModalOpen(false)
+            }
+        } catch (error: any) {
+            console.error('Erro ao salvar ordem:', error)
+            alert(`Erro ao salvar: ${error.message}. Verifique se a tabela 'ordens_programadas' existe no banco de dados.`)
         }
-        setIsModalOpen(false)
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm("Tem certeza que deseja excluir esta ordem?")) {
-            setOrdens(prev => prev.filter(o => o.id !== id))
+            try {
+                const res = await fetch(`/api/ordens/${id}`, { method: 'DELETE' })
+                if (!res.ok) {
+                    const json = await res.json()
+                    throw new Error(json.error || 'Erro ao deletar')
+                }
+                setOrdens(prev => prev.filter(o => o.id !== id))
+            } catch (error: any) {
+                console.error('Erro ao deletar ordem:', error)
+                alert(`Erro ao excluir: ${error.message}`)
+            }
         }
     }
 
