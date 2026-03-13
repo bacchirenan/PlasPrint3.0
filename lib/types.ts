@@ -218,3 +218,15 @@ export const MACHINE_FULL_NAMES: Record<string, string> = {
   '181': '181- CX-360G',
   '182': '182- CX-360G',
 }
+
+export interface OrdemProgramada {
+  id: string
+  os: string
+  produto: string
+  ciclo: number
+  ciclos_planejados: number
+  ciclos_realizados: number
+  maquina_id?: string // Opcional, caso queira vincular a uma máquina específica
+  created_at?: string
+  updated_at?: string
+}

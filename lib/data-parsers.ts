@@ -123,10 +123,10 @@ export function parseProducaoXlsx(buffer: ArrayBuffer): ProducaoRow[] {
             hora,
             turno,
             registro: String(row[7] ?? '').trim(), // Coluna H
-            os: '', // Coluna I (ignorada)
+            os: String(row[8] ?? '').trim(), // Coluna I
             produto: String(row[9] ?? '').trim(), // Coluna J
             operador: String(row[10] ?? '').trim(), // Coluna K
-            tempo_segundos: diffSegundos, // Calculado de D e E
+            tempo_segundos: toNum(row[12]) || diffSegundos, // Coluna M (S) ou queda em D/E
             producao_total: toNum(row[14]), // Coluna O
             rejeito: toNum(row[15]), // Coluna P
             pecas_boas: toNum(row[16]), // Coluna Q

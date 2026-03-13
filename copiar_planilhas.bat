@@ -58,4 +58,4 @@ if exist "%ORIGEM_DB%\fichas_tecnicas.db" (
 
 echo.
 echo Processo concluído!
-pause
+

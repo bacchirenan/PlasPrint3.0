@@ -9,6 +9,7 @@ const NAV_ITEMS = [
     { name: 'Assistente IA', path: '/dashboard/assistente' },
     { name: 'Fichas', path: '/dashboard/fichas' },
     { name: 'Produção', path: '/dashboard/producao' },
+    { name: 'Programação', path: '/dashboard/carga-maquina' },
     { name: 'Oee e Teep', path: '/dashboard/oee' },
     { name: 'Canudos', path: '/dashboard/canudos' },
     { name: 'Relatórios', path: '/dashboard/relatorios' },
