@@ -158,15 +158,18 @@ export default function CargaMaquinaPage() {
 
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
 
-    const loadResources = async () => {
+    const loadResources = async (isInitial = false) => {
         setLoading(true)
-        // 1. Local Storage
-        const saved = localStorage.getItem('plasprint_ordens_programadas')
-        if (saved) {
-            try {
-                setOrdens(JSON.parse(saved))
-            } catch (e) {
-                console.error("Erro ao carregar ordens", e)
+        
+        // 1. Local Storage (Apenas no carregamento inicial para evitar sobreposição)
+        if (isInitial) {
+            const saved = localStorage.getItem('plasprint_ordens_programadas')
+            if (saved) {
+                try {
+                    setOrdens(JSON.parse(saved))
+                } catch (e) {
+                    console.error("Erro ao carregar ordens", e)
+                }
             }
         }
 
@@ -186,12 +189,14 @@ export default function CargaMaquinaPage() {
 
     // Carregar dados iniciais
     useEffect(() => {
-        loadResources()
+        loadResources(true)
     }, [])
 
-    // Salvar no Local Storage
+    // Salvar no Local Storage sempre que ordens mudar
     useEffect(() => {
-        if (!loading) {
+        // Não salvamos se estiver carregando os dados iniciais, 
+        // para não sobrescrever o storage com um array vazio antes de ler o que já existe
+        if (!loading || ordens.length > 0) {
             localStorage.setItem('plasprint_ordens_programadas', JSON.stringify(ordens))
         }
     }, [ordens, loading])
@@ -402,7 +407,7 @@ export default function CargaMaquinaPage() {
                 </div>
                 <button 
                     className="btn btn-secondary" 
-                    onClick={() => loadResources()}
+                    onClick={() => loadResources(false)}
                     disabled={loading}
                     style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px' }}
                 >
