@@ -70,7 +70,7 @@ async function fetchSheetRows(sheetName: string): Promise<SheetRow[]> {
         const rows: SheetRow[] = lines.slice(1, MAX_ROWS + 1).map(line => {
             const cols = parseCSVLine(line)
             const info = cols[0] || ''
-            const colB  = cols[1] || ''
+            const colB = cols[1] || ''
 
             // Une os links encontrados em ambas as colunas (sem duplicatas)
             const fromColA = extractAllDriveUrls(info)

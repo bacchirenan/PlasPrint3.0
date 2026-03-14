@@ -148,6 +148,7 @@ export default function CargaMaquinaPage() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingOrder, setEditingOrder] = useState<OrdemProgramada | null>(null)
     const [isPendingExpanded, setIsPendingExpanded] = useState(false)
+    const [isCompletedExpanded, setIsCompletedExpanded] = useState(false)
 
     // Form states
     const [formOS, setFormOS] = useState('')
@@ -323,14 +324,49 @@ export default function CargaMaquinaPage() {
         return { machineGroups, activeOsIds, osTotals }
     }, [producaoData, ordens])
 
-    // Filtra ordens que ainda NÃO estão em nenhuma máquina
+    // Filtra ordens que ainda NÃO estão em nenhuma máquina e não concluídas
     const pendingOrders = useMemo(() => {
-        return ordens.filter(o => !processedData.activeOsIds.has(o.id)).map(o => {
+        return ordens.filter(o => {
+            if (processedData.activeOsIds.has(o.id)) return false;
+            const osNorm = o.os.toString().replace(/\D/g, '');
+            const dbRealizados = Number(o.ciclos_realizados) || 0;
+            const planRealizados = processedData.osTotals[osNorm] !== undefined ? Number(processedData.osTotals[osNorm]) : 0;
+            const realizados = Math.max(dbRealizados, planRealizados);
+            
+            const planejados = Number(o.ciclos_planejados) || 0;
+            if (planejados > 0) {
+                const progresso = Math.round((realizados / planejados) * 100);
+                if (progresso >= 100) return false;
+            }
+            return true;
+        }).map(o => {
             const osNorm = o.os.toString().replace(/\D/g, '')
+            const dbRealizados = Number(o.ciclos_realizados) || 0;
+            const planRealizados = processedData.osTotals[osNorm] !== undefined ? Number(processedData.osTotals[osNorm]) : 0;
             return {
                 ...o,
-                ciclos_realizados: processedData.osTotals[osNorm] || 0 // Sincroniza o real da planilha
+                ciclos_realizados: Math.max(dbRealizados, planRealizados)
             }
+        })
+    }, [ordens, processedData])
+
+    // Filtra todas as ordens que atingiram 100% de produção
+    const completedOrders = useMemo(() => {
+        return ordens.map(o => {
+            const osNorm = o.os.toString().replace(/\D/g, '')
+            const dbRealizados = Number(o.ciclos_realizados) || 0;
+            const planRealizados = processedData.osTotals[osNorm] !== undefined ? Number(processedData.osTotals[osNorm]) : 0;
+            return {
+                ...o,
+                ciclos_realizados: Math.max(dbRealizados, planRealizados)
+            }
+        }).filter(o => {
+            const planejados = Number(o.ciclos_planejados) || 0;
+            if (planejados > 0) {
+                const progresso = Math.round((Number(o.ciclos_realizados) / planejados) * 100);
+                return progresso >= 100;
+            }
+            return false;
         })
     }, [ordens, processedData])
 
@@ -583,6 +619,80 @@ export default function CargaMaquinaPage() {
                     )}
                 </TableSection>
             ))}
+
+            {/* Tabela de Produzidos (100% Concluídos) */}
+            <h2 style={{ fontSize: '18px', color: '#fff', marginBottom: '16px', marginTop: '24px', fontWeight: 800 }}>Produzidos</h2>
+            <TableSection 
+                title="Ordens Concluídas (100% ou mais)" 
+                icon="✅" 
+                headers={['OS', 'Produto', 'Peças Hora', 'Planejado', 'Realizado', '% Progresso', 'Ações']}
+            >
+                {completedOrders.length > 0 ? (
+                    (isCompletedExpanded ? completedOrders : completedOrders.slice(0, 5)).map((ordem) => {
+                        const progresso = Math.min(100, (ordem.ciclos_realizados / ordem.ciclos_planejados) * 100);
+
+                        return (
+                            <tr key={`completed-${ordem.id}`} style={{ borderBottom: '1px solid var(--border-card)' }}>
+                                <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--success)' }}>{ordem.os}</td>
+                                <td style={{ padding: '12px 16px' }}>{ordem.produto}</td>
+                                <td style={{ padding: '12px 16px' }}>{ordem.ciclo}s</td>
+                                <td style={{ padding: '12px 16px' }}>{ordem.ciclos_planejados.toLocaleString()}</td>
+                                <td style={{ padding: '12px 16px', fontWeight: 700 }}>{ordem.ciclos_realizados.toLocaleString()}</td>
+                                <td style={{ padding: '12px 16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden' }}>
+                                            <div style={{ width: `100%`, height: '100%', background: 'var(--success)' }} />
+                                        </div>
+                                        <span style={{ fontSize: '11px', fontWeight: 600 }}>100%</span>
+                                    </div>
+                                </td>
+                                <td style={{ padding: '12px 16px' }}>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button 
+                                            onClick={() => handleOpenModal(ordem)}
+                                            style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: 'var(--primary-accent)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                        >
+                                            Editar
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDelete(ordem.id)}
+                                            style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                        >
+                                            Excluir
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        );
+                    })
+                ) : (
+                    <tr>
+                        <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            Nenhuma ordem concluída encontrada.
+                        </td>
+                    </tr>
+                )}
+            </TableSection>
+            {completedOrders.length > 5 && (
+                <div style={{ marginTop: '-16px', marginBottom: '24px', textAlign: 'center' }}>
+                    <button 
+                        onClick={() => setIsCompletedExpanded(!isCompletedExpanded)}
+                        style={{ 
+                            background: 'rgba(16, 185, 129, 0.1)', 
+                            border: '1px solid rgba(16, 185, 129, 0.2)', 
+                            color: 'var(--success)', 
+                            padding: '6px 20px', 
+                            borderRadius: '20px', 
+                            cursor: 'pointer', 
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        {isCompletedExpanded ? '↑ Mostrar Menos' : `↓ Ver todas (${completedOrders.length})`}
+                    </button>
+                </div>
+            )}
 
             {/* Modal de Cadastro/Edição */}
             {isModalOpen && (
